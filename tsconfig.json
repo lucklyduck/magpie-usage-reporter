@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": false,
+    "skipLibCheck": true,
+    "types": ["bun", "node"]
+  },
+  "include": ["types/**/*.d.ts", "lib/domain/**/*.mjs", "lib/registry.mjs"]
+}

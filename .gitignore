@@ -1,0 +1,12 @@
+node_modules/
+.tools/
+.state/
+.smoke/
+outputs/
+coverage/
+playwright-report/
+test-results/
+*.tgz
+*.sqlite*
+.env
+

@@ -1,0 +1,84 @@
+{
+  "name": "magpie-usage-subscriptions",
+  "version": "0.1.0",
+  "description": "Magpie 账号与模型用量、额度和可选内容的定时文字通知",
+  "type": "module",
+  "main": "./index.mjs",
+  "license": "MIT",
+  "files": [
+    "index.mjs",
+    "serve.mjs",
+    "lib",
+    "types",
+    "page",
+    "ui",
+    "vendor/page-usage-tree",
+    "LICENSE",
+    "README.md",
+    "THIRD_PARTY_NOTICES.md",
+    "docs/API.md",
+    "outputs/dependency-licenses.json"
+  ],
+  "scripts": {
+    "start": "bun serve.mjs",
+    "test": "bun test/run.mjs",
+    "typecheck": "tsc --noEmit",
+    "test:ui": "bun e2e/run.mjs",
+    "test:live": "bun scripts/check-live.mjs",
+    "pack": "bun scripts/pack.mjs",
+    "format:check": "prettier --check --ignore-unknown \"lib/**/*.mjs\" \"types/**/*.d.ts\" \"ui/*\" \"page/*\" \"test/*.mjs\" \"e2e/*.mjs\" \"scripts/*.mjs\" index.mjs serve.mjs"
+  },
+  "engines": {
+    "bun": ">=1.3.0",
+    "magpie": ">=0.1.3436"
+  },
+  "dependencies": {
+    "croner": "^10.0.1",
+    "nodemailer": "^8.0.1",
+    "zod": "^4.0.0",
+    "string-width": "^8.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "latest",
+    "@types/bun": "latest",
+    "@types/node": "^24.0.0",
+    "@types/nodemailer": "latest",
+    "prettier": "^3.9.10",
+    "smtp-server": "latest",
+    "typescript": "^6.0.0"
+  },
+  "keywords": [
+    "magpie-plugin",
+    "magpie-page",
+    "usage",
+    "notifications",
+    "telegram",
+    "onebot",
+    "smtp"
+  ],
+  "magpie": {
+    "name": "用量与订阅 / Usage subscriptions",
+    "summary": {
+      "zh": "按账号或模型查看用量和额度，选择报表内容，并通过 Telegram、OneBot、邮件或 Webhook 定时推送。",
+      "en": "Account and model usage, quotas, configurable scheduled text reports with primary and backup channels."
+    },
+    "page": {
+      "title": "Usage subscriptions",
+      "titles": {
+        "zh": "用量与订阅"
+      },
+      "file": "page/index.html",
+      "icon": "page/icon.svg",
+      "service": {
+        "port": 3495,
+        "option": "port"
+      }
+    },
+    "options": {
+      "port": 3495,
+      "currency": "usd",
+      "chineseUnits": false,
+      "usdCny": 0
+    }
+  }
+}

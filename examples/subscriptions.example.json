@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "name": "每日综合日报",
+  "enabled": false,
+  "timezone": "Asia/Shanghai",
+  "filters": {
+    "providers": [],
+    "accounts": [],
+    "models": [],
+    "agents": [],
+    "sources": [
+      "through",
+      "direct",
+      "reported"
+    ]
+  },
+  "route": {
+    "primaryChannelId": "REPLACE_WITH_SAVED_CHANNEL_ID",
+    "backupChannelId": null
+  },
+  "schedule": {
+    "type": "daily",
+    "time": "22:00"
+  },
+  "skipEmpty": true,
+  "catchUp": "latest",
+  "content": {
+    "layout": "table",
+    "currency": "USD",
+    "usdCny": 0,
+    "includeCache": true,
+    "hideAccountNames": false,
+    "blocks": [
+      {
+        "id": "today",
+        "type": "account-table",
+        "period": "today",
+        "grouping": "account",
+        "title": "今日账号用量",
+        "fields": [
+          "calls",
+          "errors",
+          "retried",
+          "tokens",
+          "costUsd"
+        ],
+        "sort": "tokens",
+        "limit": null
+      },
+      {
+        "id": "week",
+        "type": "model-table",
+        "period": "this-week",
+        "grouping": "model",
+        "title": "本周模型排行",
+        "fields": [
+          "calls",
+          "tokens",
+          "costUsd"
+        ],
+        "sort": "costUsd",
+        "limit": 10
+      },
+      {
+        "id": "quota",
+        "type": "quota",
+        "period": "today",
+        "grouping": "account",
+        "title": "当前额度",
+        "fields": [],
+        "sort": "tokens",
+        "limit": null
+      },
+      {
+        "id": "balance",
+        "type": "balance",
+        "period": "today",
+        "grouping": "account",
+        "title": "当前余额",
+        "fields": [],
+        "sort": "tokens",
+        "limit": null
+      }
+    ]
+  }
+}
