@@ -1,4 +1,24 @@
 const $ = (id) => document.getElementById(id);
+const icons = {
+  chart: '<path d="M3 13V8m5 5V3m5 10V6"/>',
+  calendar:
+    '<rect x="2.5" y="3.5" width="11" height="10" rx="2"/><path d="M5 2v3m6-3v3M2.5 7h11"/>',
+  send: '<path d="m2 7 11-5-3.5 12-2-5L2 7Zm5.5 2L13 2"/>',
+  history: '<path d="M2.5 5v3h3M3 8a5.5 5.5 0 1 1 .5 4M8 4.5V8l2 1.5"/>',
+  settings:
+    '<path d="m6.5 2-.5 1.5-1.5.9-1.5-.3-1 2 1.1 1.2v1.4L2 9.9l1 2 1.5-.3 1.5.9.5 1.5h2l.5-1.5 1.5-.9 1.5.3 1-2-1.1-1.2V7.3L13 6.1l-1-2-1.5.3L9 3.5 8.5 2h-2Z"/><circle cx="7.5" cy="8" r="2"/>',
+  tree: '<rect x="5.5" y="1.5" width="5" height="3" rx=".8"/><rect x="1" y="11.5" width="4" height="3" rx=".8"/><rect x="11" y="11.5" width="4" height="3" rx=".8"/><path d="M8 4.5V8m-5 3.5V9a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v2.5M8 8v3.5"/>',
+  external:
+    '<path d="M8 2h6v6m0-6-7 7M6 3H3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-3"/>',
+  refresh: '<path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5v3h-3"/>',
+  close: '<path d="m3.5 3.5 9 9m0-9-9 9"/>',
+};
+function paintIcons(root = document) {
+  root.querySelectorAll("[data-icon]").forEach((el) => {
+    el.innerHTML = `<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[el.dataset.icon] || ""}</svg>`;
+  });
+}
+paintIcons();
 const esc = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -167,22 +187,28 @@ async function refreshLists() {
 async function runtime() {
   try {
     const r = await api("status");
-    $("runtime").textContent =
+    $("runtime").innerHTML =
+      "<i></i><span>" +
       (r.leader ? "后台运行中" : "等待宿主执行权") +
       "\n上次检查：" +
       (r.lastTick
         ? new Date(r.lastTick).toLocaleTimeString("zh-CN")
-        : "尚未执行");
+        : "尚未执行") +
+      "</span>";
+    $("runtime").classList.toggle("online", r.leader);
   } catch {
-    $("runtime").textContent = "后台未连接";
+    $("runtime").innerHTML = "<i></i><span>后台未连接</span>";
+    $("runtime").classList.remove("online");
   }
 }
 function navigate(page) {
   state.page = page;
   note();
-  document
-    .querySelectorAll("nav button")
-    .forEach((b) => b.classList.toggle("active", b.dataset.page === page));
+  document.querySelectorAll("[data-page]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.page === page);
+    if (b.dataset.page === page) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
   $("page-title").textContent = titles[page][0];
   $("page-description").textContent = titles[page][1];
   renderPage().catch((e) => note(errorText(e)));
@@ -256,7 +282,7 @@ function filterControls(filters, scope = "usage") {
           "</label>",
       )
       .join("") +
-    '</div><p class="footer-note">多选列表为空表示不限制该项；不同维度同时生效。按 Ctrl / Command 可多选。</p>'
+    '</div><p class="footer-note">多选列表为空表示不限制该项；不同维度同时生效。按 Ctrl / Command 可多选。</p></div>'
   );
 }
 function readFilters(root) {
@@ -310,13 +336,13 @@ function renderUsage() {
     (state.showZeroAccounts ? "checked" : "") +
     "> 显示无调用账号</label></div>" +
     (state.period === "custom"
-      ? '<div class="toolbar"><label>开始 ' +
+      ? '<div class="toolbar date-controls"><label>开始 ' +
         input("from", state.custom.from || "", "date") +
         "</label><label>结束 " +
         input("to", state.custom.to || "", "date") +
         '</label><button id="apply-dates" class="secondary">应用日期</button></div>'
       : "") +
-    '<details class="filter-panel" id="usage-filters"><summary>筛选与显示列</summary>' +
+    '<details class="filter-panel" id="usage-filters"><summary>筛选与显示列</summary><div class="filter-body">' +
     filterControls(state.filters) +
     '<div class="section-heading">显示列</div><div class="check-grid">' +
     state.cap.metrics
@@ -464,11 +490,15 @@ function usageResults(data) {
         "group-row",
       );
       for (const leaf of g.children)
-        body += row(leaf, "↳ " + esc(leaf.label), "leaf-row");
+        body += row(
+          leaf,
+          '<span class="leaf-marker">↳</span>' + esc(leaf.label),
+          "leaf-row",
+        );
     }
   }
   return (
-    '<div class="cards">' +
+    '<section class="stats-strip" aria-label="用量概览">' +
     [
       ["调用", "calls", s.calls, "失败 " + s.errors + " · 重试 " + s.retried],
       [
@@ -497,16 +527,16 @@ function usageResults(data) {
     ]
       .map(
         ([label, id, value, sub]) =>
-          '<div class="card"><div class="label">' +
+          '<div class="stat"><span class="stat-label">' +
           label +
-          '</div><div class="value">' +
+          '</span><strong class="stat-value">' +
           esc(metric(id, value, s)) +
-          "</div><small>" +
+          '</strong><span class="stat-sub">' +
           esc(sub) +
-          "</small></div>",
+          "</span></div>",
       )
       .join("") +
-    '</div><section class="panel"><div class="panel-title"><h2>' +
+    '</section><section class="panel"><div class="panel-title"><h2>' +
     esc(data.period.label) +
     " · " +
     (data.grouping === "account"
@@ -550,11 +580,11 @@ function quotaCards(q) {
     q.cards
       .map(
         (c) =>
-          '<div class="quota-card"><strong>' +
+          '<div class="quota-card"><div class="quota-card-head"><strong>' +
           esc(c.providerName) +
           " / " +
           esc(c.accountName) +
-          "</strong>" +
+          "</strong></div>" +
           (c.error
             ? '<p class="form-error">额度读取失败</p>'
             : c.windows
@@ -562,9 +592,9 @@ function quotaCards(q) {
                   const expired =
                     w.resetsAt && Date.parse(w.resetsAt) <= Date.now();
                   return (
-                    "<p>" +
+                    '<div class="quota-window"><div class="quota-window-head"><span>' +
                     esc(w.name) +
-                    "：" +
+                    "</span><span>" +
                     esc(
                       expired
                         ? "旧窗口，等待刷新"
@@ -575,16 +605,20 @@ function quotaCards(q) {
                               ? "未提供"
                               : "已用 " + w.used.toFixed(1) + "%"),
                     ) +
-                    "</p>" +
+                    "</span></div>" +
                     (!expired && w.used != null
                       ? '<div class="progress"><span style="width:' +
                         Math.min(100, Math.max(0, w.used)) +
                         '%"></span></div>'
                       : "") +
                     "<small>重置：" +
-                    esc(w.resetsAt || "未提供") +
+                    esc(
+                      w.resetsAt
+                        ? new Date(w.resetsAt).toLocaleString("zh-CN")
+                        : "未提供",
+                    ) +
                     (w.pool || w.family ? " · 共享额度" : "") +
-                    "</small>"
+                    "</small></div>"
                   );
                 })
                 .join("")) +
@@ -599,7 +633,9 @@ function quotaCards(q) {
           ) +
           (c.sharedBalance ? ' <span class="badge">共享余额</span>' : "") +
           "</p><small>读取：" +
-          esc(c.readAt || "时间未知") +
+          esc(
+            c.readAt ? new Date(c.readAt).toLocaleString("zh-CN") : "时间未知",
+          ) +
           (c.stale ? " · 缓存" : "") +
           "</small></div>",
       )
@@ -639,7 +675,7 @@ function renderSubscriptions() {
       ? state.subscriptions
           .map(
             (s) =>
-              '<div class="list-card"><div><strong>' +
+              '<div class="list-card"><div class="list-card-main"><strong>' +
               esc(s.name) +
               '</strong><span class="badge ' +
               (s.enabled ? "good" : "") +
@@ -686,7 +722,7 @@ function renderChannels() {
       ? state.channels
           .map(
             (c) =>
-              '<div class="list-card"><div><strong>' +
+              '<div class="list-card"><div class="list-card-main"><strong>' +
               esc(c.name) +
               '</strong><span class="badge">' +
               esc(
@@ -754,7 +790,7 @@ function openChannel(draft) {
   $("editor-content").innerHTML =
     '<div class="dialog-head"><h2>' +
     (d.id ? "编辑渠道" : "添加通知渠道") +
-    '</h2><button class="secondary" data-close="editor">关闭</button></div><form id="channel-form"><div class="form-grid">' +
+    '</h2><button class="icon-only" data-close="editor" aria-label="关闭编辑器"><span data-icon="close"></span></button></div><form id="channel-form"><div class="form-grid">' +
     field("名称", input("name", d.name, "text", "required")) +
     field(
       "渠道类型",
@@ -824,6 +860,7 @@ function openChannel(draft) {
     }
   };
   if (!$("editor").open) $("editor").showModal();
+  paintIcons($("editor"));
 }
 function readSubscription() {
   const f = $("subscription-form"),
@@ -1008,7 +1045,7 @@ function openSubscription(draft) {
   $("editor-content").innerHTML =
     '<div class="dialog-head"><h2>' +
     (d.id ? "编辑订阅" : "新建订阅") +
-    '</h2><button class="secondary" data-close="editor">关闭</button></div><form id="subscription-form"><div class="form-grid">' +
+    '</h2><button class="icon-only" data-close="editor" aria-label="关闭编辑器"><span data-icon="close"></span></button></div><form id="subscription-form"><div class="form-grid">' +
     field("订阅名称", input("name", d.name, "text", "required")) +
     field("时区", input("timezone", d.timezone, "text", "required")) +
     field(
@@ -1045,7 +1082,7 @@ function openSubscription(draft) {
         "</select>",
     ) +
     scheduleInputs(d.schedule) +
-    '</div><details class="filter-panel" id="subscription-filters"><summary>数据范围</summary>' +
+    '</div><details class="filter-panel" id="subscription-filters"><summary>数据范围</summary><div class="filter-body">' +
     filterControls(d.filters, "subscription") +
     '</details><div class="section-heading">报表内容</div><div class="form-grid">' +
     field(
@@ -1179,11 +1216,12 @@ function openSubscription(draft) {
     }
   };
   if (!$("editor").open) $("editor").showModal();
+  paintIcons($("editor"));
 }
 function showPreview(p) {
   $("preview-content").innerHTML =
     (p.channels
-      ? '<div class="check-grid">' +
+      ? '<div class="check-grid preview-channels">' +
         p.channels
           .map(
             (c) =>
@@ -1220,7 +1258,7 @@ async function renderDeliveries() {
       ? jobs
           .map(
             (j) =>
-              '<div class="list-card"><div><strong>' +
+              '<div class="list-card"><div class="list-card-main"><strong>' +
               esc(j.subscription?.name || "渠道测试") +
               "</strong>" +
               badge(j.status) +
@@ -1424,10 +1462,20 @@ document.addEventListener("click", async (event) => {
     note(errorText(e));
   }
 });
-$("refresh").onclick = () =>
-  state.page === "usage"
-    ? loadUsage(true)
-    : renderPage().catch((e) => note(errorText(e)));
+$("refresh").onclick = async () => {
+  $("refresh").classList.add("loading");
+  $("refresh").disabled = true;
+  try {
+    if (state.page === "usage") await loadUsage(true);
+    else await renderPage();
+    await runtime();
+  } catch (e) {
+    note(errorText(e));
+  } finally {
+    $("refresh").classList.remove("loading");
+    $("refresh").disabled = false;
+  }
+};
 let refreshTimer;
 function scheduleRefresh() {
   clearInterval(refreshTimer);
@@ -1444,6 +1492,8 @@ function scheduleRefresh() {
 }
 if (new URLSearchParams(location.search).get("theme") === "dark")
   document.documentElement.dataset.theme = "dark";
+if (new URLSearchParams(location.search).get("theme") === "light")
+  document.documentElement.dataset.theme = "light";
 try {
   [state.cap, state.settings] = await Promise.all([
     api("capabilities"),

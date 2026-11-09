@@ -24,7 +24,7 @@
 在 Magpie 的插件页添加本项目目录，或执行：
 
 ~~~powershell
-magpie plugin add C:\Users\Elecat\Documents\Code\magpie-plugin
+magpie plugin add C:\Users\Elecat\Documents\Code\magpie-plugin\magpie-usage-reporter
 ~~~
 
 启用后，在 Magpie 的插件页面打开“用量与订阅”。默认本地服务为 http://127.0.0.1:3495。插件支持 magpie web 的服务代理。

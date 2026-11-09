@@ -49,7 +49,7 @@ try {
     /浏览器综合日报/,
   );
   assert.equal(f.calls.length, 0);
-  await page.locator('#preview [data-close="preview"]').click();
+  await page.locator('#preview .dialog-footer [data-close="preview"]').click();
   await page.getByRole("button", { name: "保存订阅", exact: true }).click();
   await page
     .getByRole("strong")
