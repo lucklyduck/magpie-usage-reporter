@@ -2,6 +2,35 @@ import { test, expect } from "bun:test";
 import { startServer } from "../lib/server.mjs";
 import { makeFixture, settled } from "./helpers.mjs";
 
+test("sandboxed Magpie pages can load module scripts while foreign origins stay blocked", async () => {
+  const f = makeFixture(),
+    server = await startServer({ port: 0, app: f.app }),
+    base = "http://127.0.0.1:" + server.port;
+  try {
+    for (const path of ["/", "/app.js", "/style.css", "/icon.svg"]) {
+      const response = await fetch(base + path, {
+        headers: { Origin: "null" },
+      });
+      expect(response.status).toBe(200);
+      expect(response.headers.get("Access-Control-Allow-Origin")).toBe("null");
+      expect(response.headers.get("Vary")).toBe("Origin");
+      const foreign = await fetch(base + path, {
+        headers: { Origin: "https://evil.test" },
+      });
+      expect(foreign.status).toBe(403);
+      expect(foreign.headers.has("Access-Control-Allow-Origin")).toBe(false);
+    }
+    const denied = await fetch(base + "/api/v1/settings", {
+      headers: { Origin: "null" },
+    });
+    expect(denied.status).toBe(401);
+    expect(denied.headers.get("Access-Control-Allow-Origin")).toBe("null");
+  } finally {
+    await server.close();
+    f.repo.close();
+  }
+});
+
 test("inactive identity filters remain visible and never broaden the selected scope", async () => {
   const f = makeFixture();
   const data = await f.app.usage({ filters: { models: ['["gone","model"]'] } });

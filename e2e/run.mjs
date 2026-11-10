@@ -4,6 +4,7 @@ import { mkdirSync } from "node:fs";
 import { startServer } from "../lib/server.mjs";
 import { notificationAdapters } from "../lib/channels/index.mjs";
 import { makeFixture, settled } from "../test/helpers.mjs";
+import { checkSandbox } from "./sandbox.mjs";
 const f = makeFixture({ adapters: notificationAdapters() }),
   service = await startServer({ port: 0, app: f.app });
 const base = "http://127.0.0.1:" + service.port,
@@ -23,6 +24,7 @@ try {
     channel: process.env.BROWSER_CHANNEL || "msedge",
     headless: true,
   });
+  await checkSandbox(browser, base);
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1000 },
   });
@@ -111,6 +113,7 @@ try {
     JSON.stringify({
       ok: true,
       scenarios: [
+        "Magpie sandbox with direct and proxied service URLs",
         "account/model views",
         "subscription preview/save/reload",
         "webhook channel test",
