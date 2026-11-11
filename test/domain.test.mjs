@@ -107,7 +107,9 @@ test("configuration rejects duplicate route, empty fields and invalid cron", () 
       f.reg,
     ),
   ).toThrow();
-  expect(() => validateSettings({ currency: "CNY", usdCny: 0 })).toThrow();
+  expect(() =>
+    validateSettings({ displayMode: "custom", currency: "CNY", usdCny: 0 }),
+  ).toThrow();
   return f.close();
 });
 test("report filters, top-N totals, unknown price and quota timestamps", async () => {

@@ -75,10 +75,7 @@
       }
     },
     "options": {
-      "port": 3495,
-      "currency": "usd",
-      "chineseUnits": false,
-      "usdCny": 0
+      "port": 3495
     }
   }
 }

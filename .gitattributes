@@ -1,0 +1,14 @@
+/index.mjs text eol=lf
+/serve.mjs text eol=lf
+/lib/** text eol=lf
+/ui/** text eol=lf
+/page/** text eol=lf
+/types/** text eol=lf
+/test/** text eol=lf
+/e2e/** text eol=lf
+/scripts/** text eol=lf
+/.gitattributes text eol=lf
+/package.json text eol=lf
+/tsconfig.json text eol=lf
+/*.md text eol=lf
+/docs/*.md text eol=lf

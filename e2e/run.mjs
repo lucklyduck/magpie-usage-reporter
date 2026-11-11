@@ -8,6 +8,8 @@ import { checkSandbox } from "./sandbox.mjs";
 import { checkUntrustedSandbox, checkReconnect } from "./security.mjs";
 import { checkOriginal } from "./original.mjs";
 import { deliveryCases, checkDeliveryDetails } from "./deliveries.mjs";
+import { checkHostIntegration } from "./host.mjs";
+import { checkUpgradeStartup } from "./upgrade.mjs";
 const f = makeFixture({ adapters: notificationAdapters() }),
   deliveries = deliveryCases(f),
   service = await startServer({ port: 0, app: f.app });
@@ -29,6 +31,8 @@ try {
     headless: true,
   });
   await checkUntrustedSandbox(browser, base);
+  await checkHostIntegration(browser);
+  await checkUpgradeStartup(browser);
   await checkSandbox(browser, base, deliveries);
   await checkReconnect(browser, base);
   const page = await browser.newPage({
@@ -126,6 +130,10 @@ try {
     JSON.stringify({
       ok: true,
       scenarios: [
+        "old backend handover waits before loading new modules and renews its token",
+        "host themes, privacy-safe errors and hidden-page polling",
+        "Magpie/custom display settings and fixed new subscription defaults",
+        "HTTP and local HTTPS Magpie service proxies",
         "Magpie sandbox with direct and proxied service URLs",
         "external opaque origins cannot read tokens",
         "integrated original view and legacy redirects",

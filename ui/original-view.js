@@ -27,7 +27,7 @@ export function createOriginalState() {
 
 export function mountOriginal(root, { api, settings, state }) {
   V.setLang("zh");
-  V.setChineseUnits(false);
+  V.setChineseUnits(settings.chineseUnits === true);
   root.className = "original-tree";
   root.innerHTML = `<div class="toolbar">
     <label>原版周期 <select data-original="period" aria-label="原版统计周期">${[
@@ -63,7 +63,7 @@ export function mountOriginal(root, { api, settings, state }) {
     controller,
     loading = false,
     error = "";
-  const currency = settings.currency === "CNY" ? "cny" : "usd";
+  let currency = settings.currency === "CNY" ? "cny" : "usd";
   const hasData = () => state.data && state.loadedPeriod === state.period;
   const visible = () =>
     V.sortProviders(state.data?.providers || [], state.sort, state.includeCache)
@@ -235,6 +235,17 @@ export function mountOriginal(root, { api, settings, state }) {
   void refresh();
   return {
     refresh,
+    updateDisplay(next) {
+      settings = next;
+      currency = next.currency === "CNY" ? "cny" : "usd";
+      V.setChineseUnits(next.chineseUnits === true);
+      draw();
+    },
+    cancelRefresh() {
+      ++request;
+      controller?.abort();
+      loading = false;
+    },
     dispose() {
       disposed = true;
       ++request;

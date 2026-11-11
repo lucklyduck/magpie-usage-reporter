@@ -10,5 +10,10 @@
     "skipLibCheck": true,
     "types": ["bun", "node"]
   },
-  "include": ["types/**/*.d.ts", "lib/domain/**/*.mjs", "lib/registry.mjs"]
+  "include": [
+    "types/**/*.d.ts",
+    "lib/domain/**/*.mjs",
+    "lib/registry.mjs",
+    "lib/adapters/magpie-display.mjs"
+  ]
 }

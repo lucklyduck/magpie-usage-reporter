@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { buildId as workspaceBuildId } from "../lib/server.mjs";
 const packageDir = resolve(process.env.PLUGIN_PACKAGE_DIR || ".smoke/package");
 const { startServer, buildId } = await import(
   pathToFileURL(
@@ -11,6 +12,7 @@ const { startServer, buildId } = await import(
 const server = await startServer({
   port: 0,
   stateDir: join(packageDir, "state"),
+  directory: join(packageDir, "host-fixture"),
   start: false,
 });
 try {
@@ -21,6 +23,11 @@ try {
   assert.equal(health.ready, true);
   assert.equal(health.serviceProtocol, 1);
   assert.equal(health.build, buildId());
+  assert.equal(
+    health.build,
+    workspaceBuildId(),
+    "installed package must contain the final workspace build",
+  );
   assert.match(html, /usage-token/);
   const token = html.match(/name="usage-token" content="([^"]+)"/)[1];
   const cap = await (
@@ -34,6 +41,9 @@ try {
   );
   for (const path of [
     "/original-view.js",
+    "/host.js",
+    "/main.js",
+    "/display-format.js",
     "/original-assets/i18n.js",
     "/original-assets/view.js",
   ]) {
@@ -48,6 +58,15 @@ try {
     ),
     false,
   );
+  const displayResponse = await fetch(base + "/api/v1/display", {
+    headers: { "X-Usage-Token": token, Origin: "null" },
+  });
+  assert.equal(cap.uiProtocol, 1);
+  assert.equal(displayResponse.status, 200);
+  const display = await displayResponse.json();
+  assert.equal(display.mode, "magpie");
+  assert.equal(display.effective.currency, "USD");
+  assert.equal((await fetch(base + "/api/v1/display")).status, 401);
   const report = {
     checkedAt: new Date().toISOString(),
     installableTarball: true,
@@ -58,6 +77,10 @@ try {
     originalViewAssets: true,
     tokenDocumentCorsProtected: true,
     serviceProtocol: health.serviceProtocol,
+    hostAndDisplayAssets: true,
+    authenticatedDisplay: true,
+    matchesWorkspaceBuild: true,
+    build: health.build,
   };
   mkdirSync("outputs", { recursive: true });
   writeFileSync("outputs/package-check.json", JSON.stringify(report, null, 2));

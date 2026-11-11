@@ -1,6 +1,30 @@
 export type GroupingMode = "account" | "model";
 export type DataState = "complete" | "partial" | "failed";
 export type Outcome = "success" | "retryable" | "permanent" | "unknown";
+export type DisplayMode = "magpie" | "custom";
+export interface DisplayValues {
+  currency: "USD" | "CNY";
+  usdCny: number;
+  chineseUnits: boolean;
+}
+export interface DisplaySnapshot {
+  effective: DisplayValues;
+  source: "magpie" | "custom" | "fallback";
+  stale: boolean;
+  rate: {
+    source: "magpie-cache" | "custom" | "fallback";
+    at: string | null;
+    stale: boolean;
+  };
+  warnings: { code: string; message: string }[];
+}
+export interface DisplaySource {
+  load(): Promise<DisplaySnapshot>;
+}
+export interface EffectiveDisplay extends DisplaySnapshot {
+  mode: DisplayMode;
+  magpie: DisplaySnapshot;
+}
 export interface Clock {
   now(): number;
 }
