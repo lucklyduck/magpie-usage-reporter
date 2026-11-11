@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { checkSaveForms } from "./forms.mjs";
 import { checkOriginal } from "./original.mjs";
+import { checkDeliveryDetails } from "./deliveries.mjs";
 
 // Magpie keeps allow-same-origin off even after the launcher navigates to
 // the service. Module scripts and API requests therefore use Origin: null.
-export async function checkSandbox(browser, base) {
+export async function checkSandbox(browser, base, deliveries) {
   const prefix = "/_magpie/plugin/fixture/_magpie/service/";
   const host = Bun.serve({
     hostname: "127.0.0.1",
@@ -103,6 +104,7 @@ export async function checkSandbox(browser, base) {
         await frame
           .getByRole("heading", { name: "发送记录", exact: true })
           .waitFor();
+        await checkDeliveryDetails(frame, deliveries);
         await frame.getByRole("button", { name: "设置", exact: true }).click();
         await frame.locator("#settings-form").waitFor();
         await checkSaveForms(page, frame, "sandbox-" + mode);

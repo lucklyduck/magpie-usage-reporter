@@ -7,7 +7,9 @@ import { makeFixture, settled } from "../test/helpers.mjs";
 import { checkSandbox } from "./sandbox.mjs";
 import { checkUntrustedSandbox, checkReconnect } from "./security.mjs";
 import { checkOriginal } from "./original.mjs";
+import { deliveryCases, checkDeliveryDetails } from "./deliveries.mjs";
 const f = makeFixture({ adapters: notificationAdapters() }),
+  deliveries = deliveryCases(f),
   service = await startServer({ port: 0, app: f.app });
 const base = "http://127.0.0.1:" + service.port,
   received = [];
@@ -27,7 +29,7 @@ try {
     headless: true,
   });
   await checkUntrustedSandbox(browser, base);
-  await checkSandbox(browser, base);
+  await checkSandbox(browser, base, deliveries);
   await checkReconnect(browser, base);
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1000 },
@@ -92,6 +94,7 @@ try {
   await settled(f.app);
   assert.equal(received.length, 1);
   assert.match(received[0].text, /连接测试/);
+  await checkDeliveryDetails(page, deliveries);
   await page.getByRole("button", { name: "用量", exact: true }).click();
   await page.getByRole("heading", { name: "当前账号额度与余额" }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -132,6 +135,7 @@ try {
         "account/model views",
         "subscription preview/save/reload",
         "webhook channel test",
+        "failed, sent and partial delivery details with per-channel confirmations",
         "mobile layout",
         "closed-page scheduling",
       ],

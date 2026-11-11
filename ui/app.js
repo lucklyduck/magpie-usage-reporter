@@ -1323,29 +1323,64 @@ function openSubscription(draft) {
   paintIcons($("editor"));
 }
 function showPreview(p) {
+  showReportContent({
+    text: p.text,
+    channels: p.channels.map(
+      (c) => c.role + "：" + c.name + " · " + c.parts.length + " 条消息",
+    ),
+  });
+}
+function showDelivery(job) {
+  showReportContent({
+    title: "发送详情",
+    text: job.text,
+    emptyText: job.report ? "暂无报告内容" : "报告尚未生成",
+    error: job.lastError,
+    events: job.events,
+    channels: (job.channels || []).map((c, index) => {
+      const confirmed = (job.receipts || []).filter(
+        (r) => r.channelId === c.id,
+      ).length;
+      const total =
+        index === job.stage && Array.isArray(job.parts)
+          ? " / 共 " + job.parts.length + " 条"
+          : "";
+      return (
+        (index === 0 ? "主渠道" : "备用渠道") +
+        "：" +
+        c.name +
+        " · " +
+        confirmed +
+        " 条消息已确认" +
+        total
+      );
+    }),
+  });
+}
+function showReportContent({
+  title = "报表预览",
+  channels = [],
+  text,
+  emptyText = "暂无报告内容",
+  error,
+  events = [],
+}) {
+  $("preview-title").textContent = title;
   $("preview-content").innerHTML =
-    (p.channels
+    (channels.length
       ? '<div class="check-grid preview-channels">' +
-        p.channels
-          .map(
-            (c) =>
-              '<span class="badge">' +
-              esc(c.role) +
-              "：" +
-              esc(c.name) +
-              " · " +
-              c.parts.length +
-              " 条消息</span>",
-          )
+        channels
+          .map((label) => '<span class="badge">' + esc(label) + "</span>")
           .join("") +
         "</div>"
       : "") +
+    (error ? '<p class="footer-note">' + esc(error) + "</p>" : "") +
     '<pre class="preview-text">' +
-    esc(p.text || "暂无报告内容") +
+    esc(text || emptyText) +
     "</pre>" +
-    (p.events
+    (events.length
       ? '<p class="footer-note">' +
-        p.events
+        events
           .map((e) =>
             esc(new Date(e.at).toLocaleString("zh-CN") + " " + e.message),
           )
@@ -1546,7 +1581,7 @@ document.addEventListener("click", async (event) => {
     }
     if (action === "detail-job") {
       const j = await api("deliveries/" + id);
-      showPreview(j);
+      showDelivery(j);
     }
     if (
       action === "retry-job" &&
