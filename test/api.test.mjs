@@ -7,7 +7,7 @@ test("sandboxed Magpie pages can load module scripts while foreign origins stay 
     server = await startServer({ port: 0, app: f.app }),
     base = "http://127.0.0.1:" + server.port;
   try {
-    for (const path of ["/", "/app.js", "/style.css", "/icon.svg"]) {
+    for (const path of ["/app.js", "/style.css", "/icon.svg"]) {
       const response = await fetch(base + path, {
         headers: { Origin: "null" },
       });
@@ -92,7 +92,7 @@ test("HTTP API protects writes, hides credentials, and previews without sending"
     expect((await capabilities.json()).formats).toEqual(["text"]);
     const old = await fetch(base + "/original/?lang=zh");
     expect(old.status).toBe(200);
-    expect(await old.text()).toContain("账号用量");
+    expect(await old.text()).toContain("用量与订阅");
   } finally {
     await server.close();
     f.repo.close();

@@ -39,15 +39,6 @@
               <span data-icon="settings"></span><span>设置</span>
             </button>
           </nav>
-          <a
-            href="original/?lang=zh"
-            target="_blank"
-            rel="noreferrer"
-            class="original-link"
-          >
-            <span data-icon="tree"></span><span>原版用量树</span
-            ><span data-icon="external"></span>
-          </a>
           <div class="runtime" id="runtime">
             <i></i><span>正在连接后台…</span>
           </div>
@@ -77,6 +68,12 @@
             </div>
           </div>
           <div id="notice" class="notice" hidden role="status"></div>
+          <div id="connection-expired" class="notice" hidden role="alert">
+            后台已重启。未保存内容仍保留在本页，请处理后重新连接。
+            <button id="reconnect" type="button" class="secondary">
+              重新连接
+            </button>
+          </div>
           <div id="content" aria-live="polite">
             <div class="empty"><span class="spinner"></span>正在读取配置…</div>
           </div>

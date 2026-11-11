@@ -5,6 +5,8 @@ import { startServer } from "../lib/server.mjs";
 import { notificationAdapters } from "../lib/channels/index.mjs";
 import { makeFixture, settled } from "../test/helpers.mjs";
 import { checkSandbox } from "./sandbox.mjs";
+import { checkUntrustedSandbox, checkReconnect } from "./security.mjs";
+import { checkOriginal } from "./original.mjs";
 const f = makeFixture({ adapters: notificationAdapters() }),
   service = await startServer({ port: 0, app: f.app });
 const base = "http://127.0.0.1:" + service.port,
@@ -24,13 +26,16 @@ try {
     channel: process.env.BROWSER_CHANNEL || "msedge",
     headless: true,
   });
+  await checkUntrustedSandbox(browser, base);
   await checkSandbox(browser, base);
+  await checkReconnect(browser, base);
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1000 },
   });
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(base);
   await page.getByRole("heading", { name: "当前账号额度与余额" }).waitFor();
+  await checkOriginal(page, page);
   await page.getByRole("button", { name: "按模型", exact: true }).click();
   await page.getByRole("heading", { name: /供应商 → 模型 → 账号/ }).waitFor();
   mkdirSync("outputs", { recursive: true });
@@ -40,6 +45,9 @@ try {
   await page
     .locator('#subscription-form input[name="name"]')
     .fill("浏览器综合日报");
+  await page
+    .locator('#subscription-form select[name="primary"]')
+    .selectOption(f.p.id);
   await page
     .locator('#subscription-form select[name="blockPeriod"]')
     .first()
@@ -95,7 +103,9 @@ try {
     true,
   );
   // A saved subscription continues to execute after its page has closed.
-  const saved = f.repo.list("subscriptions")[0];
+  const saved = f.repo
+    .list("subscriptions")
+    .find((s) => s.name === "浏览器综合日报");
   f.app.saveSubscription(
     { ...saved, enabled: true, schedule: { type: "interval", minutes: 1 } },
     saved.id,
@@ -114,6 +124,11 @@ try {
       ok: true,
       scenarios: [
         "Magpie sandbox with direct and proxied service URLs",
+        "external opaque origins cannot read tokens",
+        "integrated original view and legacy redirects",
+        "expired sessions reconnect once and preserve unsaved edits",
+        "sandbox saves for all four channels, subscriptions and settings",
+        "form validation, Enter key, credential retention and reload",
         "account/model views",
         "subscription preview/save/reload",
         "webhook channel test",

@@ -1,3 +1,4 @@
+import { createOriginalState, mountOriginal } from "./original-view.js";
 const $ = (id) => document.getElementById(id);
 const icons = {
   chart: '<path d="M3 13V8m5 5V3m5 10V6"/>',
@@ -31,6 +32,10 @@ const token = document.querySelector('meta[name="usage-token"]').content;
 const endpoint = (path) => new URL("api/v1/" + path, location.href);
 const state = {
   page: "usage",
+  usageView:
+    new URLSearchParams(location.search).get("usageView") === "original"
+      ? "original"
+      : "enhanced",
   cap: null,
   settings: null,
   channels: [],
@@ -54,6 +59,32 @@ const state = {
   draft: null,
   request: 0,
 };
+const originalState = createOriginalState();
+let originalView,
+  usageController,
+  settingsDirty = false,
+  sessionExpired = false;
+document.addEventListener("input", (event) => {
+  if (event.target.closest("#settings-form")) settingsDirty = true;
+});
+document.addEventListener("change", (event) => {
+  if (event.target.closest("#settings-form")) settingsDirty = true;
+});
+function expiredConnection() {
+  if (sessionExpired) return;
+  sessionExpired = true;
+  clearInterval(refreshTimer);
+  $("connection-expired").hidden = false;
+  const url = new URL(location.href);
+  if (
+    !$("editor").open &&
+    !(settingsDirty && $("settings-form")) &&
+    url.searchParams.get("reconnected") !== "1"
+  ) {
+    url.searchParams.set("reconnected", "1");
+    location.replace(url.href);
+  }
+}
 const titles = {
   usage: ["用量", "按账号与模型查看消耗，以及账号当前额度。"],
   subscriptions: [
@@ -111,7 +142,30 @@ function toast(message) {
   clearTimeout(toast.timer);
   toast.timer = setTimeout(() => ($("toast").hidden = true), 4000);
 }
-async function api(path, method = "GET", body) {
+function bindSaveForm(form, save) {
+  const buttons = [...form.querySelectorAll('[type="submit"]')];
+  let saving = false;
+  const submit = async (event) => {
+    // Magpie's sandbox blocks native submission before a submit event is
+    // dispatched. Cancel the button's default action and call the API here.
+    // Enter in an input activates the same default submit button.
+    event.preventDefault();
+    if (saving || !form.reportValidity()) return;
+    saving = true;
+    buttons.forEach((button) => (button.disabled = true));
+    try {
+      await save(form);
+    } finally {
+      saving = false;
+      buttons.forEach((button) => (button.disabled = false));
+    }
+  };
+  buttons.forEach((button) => button.addEventListener("click", submit));
+  form.addEventListener("submit", submit);
+}
+async function api(path, method = "GET", body, options = {}) {
+  if (sessionExpired)
+    throw new Error("后台已重启，请重新连接后继续；未保存内容仍保留在当前页面");
   const r = await fetch(endpoint(path), {
     method,
     headers: {
@@ -119,7 +173,9 @@ async function api(path, method = "GET", body) {
       ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal: options.signal,
   });
+  if (r.status === 401) expiredConnection();
   const value = await r.json();
   if (!r.ok) {
     const e = new Error(value.error?.message || "操作失败");
@@ -202,6 +258,7 @@ async function runtime() {
   }
 }
 function navigate(page) {
+  disposeUsage();
   state.page = page;
   note();
   document.querySelectorAll("[data-page]").forEach((b) => {
@@ -214,6 +271,7 @@ function navigate(page) {
   renderPage().catch((e) => note(errorText(e)));
 }
 async function renderPage() {
+  if (state.page !== "usage") disposeUsage();
   if (state.page === "usage") renderUsage();
   if (state.page === "subscriptions") {
     await refreshLists();
@@ -298,8 +356,45 @@ function readFilters(root) {
   );
   return f;
 }
+function disposeUsage() {
+  ++state.request;
+  usageController?.abort();
+  originalView?.dispose();
+  originalView = null;
+}
 function renderUsage() {
+  disposeUsage();
   const content = $("content");
+  content.innerHTML =
+    '<div class="usage-tabs segmented" role="tablist" aria-label="用量视图">' +
+    [
+      ["enhanced", "增强视图"],
+      ["original", "原版用量树"],
+    ]
+      .map(
+        ([id, label]) =>
+          `<button role="tab" aria-selected="${state.usageView === id}" data-usage-view="${id}" class="${state.usageView === id ? "active" : ""}">${label}</button>`,
+      )
+      .join("") +
+    '</div><div id="usage-view"></div>';
+  content.querySelectorAll("[data-usage-view]").forEach((button) => {
+    button.onclick = () => {
+      state.usageView = button.dataset.usageView;
+      renderUsage();
+    };
+  });
+  if (state.usageView === "original") {
+    originalView = mountOriginal($("usage-view"), {
+      api,
+      settings: state.settings,
+      state: originalState,
+    });
+    return;
+  }
+  renderEnhancedUsage();
+}
+function renderEnhancedUsage() {
+  const content = $("usage-view");
   content.innerHTML =
     '<div class="toolbar"><div class="segmented" aria-label="归类方式">' +
     [
@@ -431,6 +526,9 @@ function renderUsage() {
     void loadUsage();
 }
 async function loadUsage(fresh = false) {
+  if (state.page !== "usage" || state.usageView !== "enhanced") return;
+  usageController?.abort();
+  usageController = new AbortController();
   const request = ++state.request,
     q = new URLSearchParams({
       period: state.period,
@@ -444,8 +542,15 @@ async function loadUsage(fresh = false) {
     q.set(key, JSON.stringify(value));
   if (fresh) q.set("fresh", "1");
   try {
-    const data = await api("usage?" + q);
-    if (request !== state.request || state.page !== "usage") return;
+    const data = await api("usage?" + q, "GET", undefined, {
+      signal: usageController.signal,
+    });
+    if (
+      request !== state.request ||
+      state.page !== "usage" ||
+      state.usageView !== "enhanced"
+    )
+      return;
     state.data = data;
     $("usage-results").innerHTML = usageResults(data);
     // Populate initially empty filter lists without disturbing selections or open state.
@@ -459,7 +564,8 @@ async function loadUsage(fresh = false) {
     }
     note(data.warnings?.map((w) => w.message).join("\n") || "");
   } catch (e) {
-    if (request === state.request) note(errorText(e));
+    if (request === state.request && e.name !== "AbortError")
+      note(errorText(e));
   }
 }
 function usageResults(data) {
@@ -826,9 +932,8 @@ function openChannel(draft) {
       config: {},
     });
   };
-  $("channel-form").onsubmit = async (e) => {
-    e.preventDefault();
-    const f = new FormData(e.target),
+  bindSaveForm($("channel-form"), async (form) => {
+    const f = new FormData(form),
       config = {},
       secret = {};
     for (const field of def.fields)
@@ -858,7 +963,7 @@ function openChannel(draft) {
     } catch (error) {
       $("editor-error").textContent = errorText(error);
     }
-  };
+  });
   if (!$("editor").open) $("editor").showModal();
   paintIcons($("editor"));
 }
@@ -1198,8 +1303,7 @@ function openSubscription(draft) {
       $("editor-error").textContent = errorText(e);
     }
   };
-  form.onsubmit = async (e) => {
-    e.preventDefault();
+  bindSaveForm(form, async () => {
     try {
       const n = readSubscription();
       await api(
@@ -1214,7 +1318,7 @@ function openSubscription(draft) {
     } catch (error) {
       $("editor-error").textContent = errorText(error);
     }
-  };
+  });
   if (!$("editor").open) $("editor").showModal();
   paintIcons($("editor"));
 }
@@ -1325,10 +1429,9 @@ function renderSettings() {
     '<form id="settings-form" class="panel settings-panel"><h2>常规设置</h2><div class="form-grid">' +
     controls +
     '</div><p class="footer-note">后台随 Magpie 插件宿主运行。页面关闭后仍执行；宿主停止期间不发送，恢复后按订阅规则处理。</p><div class="form-error" id="settings-error"></div><button type="submit">保存设置</button></form>';
-  $("settings-form").onsubmit = async (e) => {
-    e.preventDefault();
-    const v = new FormData(e.target),
-      patch = { ...s };
+  bindSaveForm($("settings-form"), async (form) => {
+    const v = new FormData(form),
+      patch = { ...state.settings };
     for (const d of defs)
       patch[d.id] =
         d.type === "boolean"
@@ -1340,10 +1443,11 @@ function renderSettings() {
       state.settings = await api("settings", "PATCH", patch);
       scheduleRefresh();
       toast("设置已保存");
+      settingsDirty = false;
     } catch (error) {
       $("settings-error").textContent = errorText(error);
     }
-  };
+  });
 }
 async function confirmAction(title, message) {
   $("confirm-title").textContent = title;
@@ -1466,8 +1570,10 @@ $("refresh").onclick = async () => {
   $("refresh").classList.add("loading");
   $("refresh").disabled = true;
   try {
-    if (state.page === "usage") await loadUsage(true);
-    else await renderPage();
+    if (state.page === "usage") {
+      if (state.usageView === "original") await originalView?.refresh(true);
+      else await loadUsage(true);
+    } else await renderPage();
     await runtime();
   } catch (e) {
     note(errorText(e));
@@ -1483,7 +1589,10 @@ function scheduleRefresh() {
     () => {
       if (document.hidden) return;
       runtime();
-      if (state.page === "usage" && !$("editor").open) loadUsage();
+      if (state.page === "usage" && !$("editor").open) {
+        if (state.usageView === "original") void originalView?.refresh();
+        else void loadUsage();
+      }
       if (state.page === "deliveries" && !$("preview").open)
         renderDeliveries().catch(() => {});
     },
@@ -1494,6 +1603,11 @@ if (new URLSearchParams(location.search).get("theme") === "dark")
   document.documentElement.dataset.theme = "dark";
 if (new URLSearchParams(location.search).get("theme") === "light")
   document.documentElement.dataset.theme = "light";
+$("reconnect").onclick = () => {
+  const url = new URL(location.href);
+  url.searchParams.delete("reconnected");
+  location.replace(url.href);
+};
 try {
   [state.cap, state.settings] = await Promise.all([
     api("capabilities"),

@@ -1,3 +1,85 @@
+.usage-tabs {
+  margin-bottom: 20px;
+  width: fit-content;
+}
+.original-tree .original-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+.original-tree .original-tiles article {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  display: grid;
+  gap: 8px;
+}
+.original-tree .original-tiles strong {
+  font-size: 24px;
+}
+.original-tree small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+.original-tree .original-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.original-tree .original-tools h2 {
+  margin-right: auto;
+}
+.original-tree .original-tools input {
+  min-width: 0;
+  max-width: 100%;
+}
+.original-tree .original-provider {
+  border-top: 1px solid var(--line);
+}
+.original-tree summary {
+  cursor: pointer;
+  padding: 14px 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.original-tree summary > :first-child {
+  margin-right: auto;
+  min-width: 120px;
+  overflow-wrap: anywhere;
+}
+.original-tree summary span {
+  color: var(--muted);
+}
+.original-tree summary::before {
+  content: "▸";
+}
+.original-tree details[open] > summary::before {
+  content: "▾";
+}
+.original-tree .original-accounts {
+  padding-left: 16px;
+}
+.original-tree .original-account {
+  border-top: 1px solid var(--line-2);
+}
+.original-tree .original-models {
+  overflow-x: auto;
+  padding-bottom: 12px;
+}
+.original-tree td:first-child {
+  max-width: 280px;
+  overflow-wrap: anywhere;
+}
+.original-tree [data-original="status"] {
+  color: var(--muted);
+  white-space: pre-line;
+}
 :root {
   color-scheme: light;
   --bg: #f4f4f6;

@@ -13,7 +13,7 @@
 - Telegram、OneBot 11 HTTP、SMTP、Webhook；每个订阅一个主渠道，可选一个备用渠道。
 - 间隔、每日、每周、每月和五字段 cron；手动发送、消息拆分、确认记录、重试及恢复。
 - 页面关闭后，调度继续随 Magpie 插件宿主运行；宿主停止期间不发送。
-- 原版用量树页面保留，可从侧栏打开；上游代码和测试完整保存在 vendor/page-usage-tree。
+- 用量页提供“增强视图／原版用量树”标签；原版保留独立周期、搜索排序、缓存开关和展开状态。上游代码和测试完整保存在 vendor/page-usage-tree。
 
 图片、附件、机器人入站命令、阈值预警和独立守护服务留给后续版本。
 
@@ -23,15 +23,17 @@
 
 在 Magpie 的插件页添加本项目目录，或执行：
 
-~~~powershell
+```powershell
 magpie plugin add C:\Users\Elecat\Documents\Code\magpie-plugin\magpie-usage-reporter
-~~~
+```
 
 启用后，在 Magpie 的插件页面打开“用量与订阅”。默认本地服务为 http://127.0.0.1:3495。插件支持 magpie web 的服务代理。
 
 默认端口可以在该插件的 options 中设置为 port。不要占用网关的 3425 端口。页面只传递启动和显示选项，通知凭据通过后台保存。
 
 插件不需要创建模型供应商或登录额外模型账号。安装和保存设置不会发出通知。
+
+首次升级到带实例隔离的版本时，若提示旧服务缺少实例标识，请等待正在进行的调用结束后完整重启 Magpie 插件宿主。后续宿主重载会等待同一配置目录的旧服务退出并自动接管；不同配置目录使用同一端口会明确报错，应为其设置不同端口。独立开发预览也不会静默连接到正式实例。
 
 ## 使用
 
@@ -46,18 +48,18 @@ magpie plugin add C:\Users\Elecat\Documents\Code\magpie-plugin\magpie-usage-repo
 
 ### 通知渠道
 
-| 渠道 | 配置 |
-| --- | --- |
-| Telegram | Bot Token、chat ID，可选话题 ID；支持私聊或群组 |
-| OneBot 11 HTTP | 现有 OneBot 实现的 HTTP 地址、私聊/群聊目标，可选 access token |
-| SMTP | 主机、端口、发件/收件地址；TLS 465 或 STARTTLS 587；登录用户名和授权码 |
-| Webhook | HTTP(S) POST 地址，可选 Bearer token |
+| 渠道           | 配置                                                                   |
+| -------------- | ---------------------------------------------------------------------- |
+| Telegram       | Bot Token、chat ID，可选话题 ID；支持私聊或群组                        |
+| OneBot 11 HTTP | 现有 OneBot 实现的 HTTP 地址、私聊/群聊目标，可选 access token         |
+| SMTP           | 主机、端口、发件/收件地址；TLS 465 或 STARTTLS 587；登录用户名和授权码 |
+| Webhook        | HTTP(S) POST 地址，可选 Bearer token                                   |
 
 OneBot 返回 HTTP 200 不一定成功，插件还验证 status、retcode 和消息回执。OneBot 12 和 WebSocket 未实现。
 
 Webhook 的请求体为：
 
-~~~json
+```json
 {
   "title": "报告标题",
   "text": "已排版的文字",
@@ -66,7 +68,7 @@ Webhook 的请求体为：
   "totalParts": 1,
   "format": "text"
 }
-~~~
+```
 
 SMTP 发送纯文本。无认证明文中继仅允许本机回环地址。生产邮件使用校验证书的 TLS，不提供跳过验证的页面开关。
 
@@ -98,14 +100,14 @@ SMTP 发送纯文本。无认证明文中继仅允许本机回环地址。生产
 
 ## 开发与验证
 
-~~~powershell
+```powershell
 bun install
 bun run typecheck
 bun run test
 bun run test:ui
 bun run test:live
 bun run pack
-~~~
+```
 
 test:ui 使用独立临时配置的无界面 Edge 和本机模拟发送端；可通过 BROWSER_CHANNEL 指定 chrome 等已安装浏览器。它不读取真实通知凭据。SMTP 集成测试使用公开的回环测试证书，测试私钥只属于测试夹具。
 
@@ -113,9 +115,9 @@ test:ui 使用独立临时配置的无界面 Edge 和本机模拟发送端；可
 
 开发预览：
 
-~~~powershell
+```powershell
 bun serve.mjs --port 3495 --state-dir .state
-~~~
+```
 
 该入口用于开发，生产运行属于 Magpie 宿主。可加 --no-scheduler 仅调试页面/API。--gateway 指定开发网关地址。
 
@@ -146,4 +148,3 @@ bun serve.mjs --port 3495 --state-dir .state
 ## 来源与许可证
 
 MIT。上游固定版本、原许可证和第三方依赖说明见 THIRD_PARTY_NOTICES.md。vendor 目录保留上游源码；本项目不代表 Magpie 官方。
-

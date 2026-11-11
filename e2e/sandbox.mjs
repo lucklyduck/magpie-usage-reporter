@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { checkSaveForms } from "./forms.mjs";
+import { checkOriginal } from "./original.mjs";
 
 // Magpie keeps allow-same-origin off even after the launcher navigates to
 // the service. Module scripts and API requests therefore use Origin: null.
@@ -17,6 +19,7 @@ export async function checkSandbox(browser, base) {
         const headers = new Headers(request.headers);
         headers.delete("host");
         const response = await fetch(target, {
+          redirect: "manual",
           method: request.method,
           headers,
           body: ["GET", "HEAD"].includes(request.method)
@@ -39,7 +42,10 @@ export async function checkSandbox(browser, base) {
           headers: outgoing,
         });
       }
-      const src = url.pathname === "/proxy" ? prefix : base + "/";
+      const proxy = url.pathname.startsWith("/proxy");
+      const src =
+        (proxy ? prefix : base + "/") +
+        (url.pathname.endsWith("-original") ? "original/" : "");
       return new Response(
         '<!doctype html><style>body{margin:0}iframe{width:100vw;height:100vh;border:0}</style><iframe title="Magpie plugin" sandbox="allow-scripts" src="' +
           src +
@@ -99,7 +105,20 @@ export async function checkSandbox(browser, base) {
           .waitFor();
         await frame.getByRole("button", { name: "设置", exact: true }).click();
         await frame.locator("#settings-form").waitFor();
+        await checkSaveForms(page, frame, "sandbox-" + mode);
+        await frame.getByRole("button", { name: "用量", exact: true }).click();
+        await checkOriginal(page, frame);
         assert.deepEqual(errors, [], "sandbox console errors: " + mode);
+        await page.goto(`http://127.0.0.1:${host.port}/${mode}-original`);
+        await page
+          .frameLocator("iframe")
+          .getByRole("heading", { name: "账号用量树", exact: true })
+          .waitFor();
+        await page
+          .frameLocator("iframe")
+          .locator(".original-provider")
+          .first()
+          .waitFor();
       } finally {
         await page.close();
       }
