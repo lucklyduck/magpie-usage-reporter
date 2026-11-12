@@ -7,6 +7,7 @@ import { makeFixture, settled } from "../test/helpers.mjs";
 import { checkSandbox } from "./sandbox.mjs";
 import { checkUntrustedSandbox, checkReconnect } from "./security.mjs";
 import { checkOriginal } from "./original.mjs";
+import { checkEnhanced } from "./enhanced.mjs";
 import { deliveryCases, checkDeliveryDetails } from "./deliveries.mjs";
 import { checkHostIntegration } from "./host.mjs";
 import { checkUpgradeStartup } from "./upgrade.mjs";
@@ -41,6 +42,7 @@ try {
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto(base);
   await page.getByRole("heading", { name: "当前账号额度与余额" }).waitFor();
+  await checkEnhanced(page);
   await checkOriginal(page, page);
   await page.getByRole("button", { name: "按模型", exact: true }).click();
   await page.getByRole("heading", { name: /供应商 → 模型 → 账号/ }).waitFor();

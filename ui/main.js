@@ -46,6 +46,10 @@ const state = {
   subscriptions: [],
   data: null,
   columns: ["calls", "errors", "tokens", "costUsd"],
+  enhancedLayout: "details",
+  usageQuery: "",
+  usageClosedProviders: new Set(),
+  usageOpenGroups: new Set(),
   grouping: "account",
   period: "today",
   sort: "tokens",
@@ -409,7 +413,25 @@ function renderUsage() {
 function renderEnhancedUsage() {
   const content = $("usage-view");
   content.innerHTML =
-    '<div class="toolbar"><div class="segmented" aria-label="归类方式">' +
+    '<div class="toolbar"><div class="segmented" aria-label="列表布局">' +
+    [
+      ["details", "账号明细"],
+      ["table", "自定义表格"],
+    ]
+      .map(
+        ([id, label]) =>
+          '<button type="button" data-enhanced-layout="' +
+          id +
+          '" aria-pressed="' +
+          (state.enhancedLayout === id) +
+          '" class="' +
+          (state.enhancedLayout === id ? "active" : "") +
+          '">' +
+          label +
+          "</button>",
+      )
+      .join("") +
+    '</div><div class="segmented" aria-label="归类方式">' +
     [
       ["account", "按账号"],
       ["model", "按模型"],
@@ -452,7 +474,7 @@ function renderEnhancedUsage() {
       : "") +
     '<details class="filter-panel" id="usage-filters"><summary>筛选与显示列</summary><div class="filter-body">' +
     filterControls(state.filters) +
-    '<div class="section-heading">显示列</div><div class="check-grid">' +
+    '<div class="section-heading">显示列（仅用于自定义表格）</div><div class="check-grid">' +
     state.cap.metrics
       .map(
         (m) =>
@@ -466,11 +488,28 @@ function renderEnhancedUsage() {
       )
       .join("") +
     '</div><div class="actions" style="margin-top:16px"><button id="apply-filters">应用筛选</button><button id="reset-filters" class="secondary">清除筛选</button><button id="save-view" class="secondary">保存为默认显示</button></div></details>' +
+    '<div class="toolbar usage-detail-tools" id="usage-detail-tools"' +
+    (state.enhancedLayout === "details" ? "" : " hidden") +
+    '><input type="search" id="usage-search" aria-label="搜索账号、供应商或模型" placeholder="搜索账号、供应商或模型" value="' +
+    esc(state.usageQuery) +
+    '"><button type="button" id="usage-expand-all" class="secondary">展开全部</button></div>' +
     '<div id="usage-results">' +
     (state.data
       ? usageResults(state.data)
       : '<div class="empty">正在读取用量…</div>') +
     "</div>";
+  content.querySelectorAll("[data-enhanced-layout]").forEach((button) => {
+    button.onclick = () => {
+      state.enhancedLayout = button.dataset.enhancedLayout;
+      content.querySelectorAll("[data-enhanced-layout]").forEach((el) => {
+        const active = el.dataset.enhancedLayout === state.enhancedLayout;
+        el.classList.toggle("active", active);
+        el.setAttribute("aria-pressed", String(active));
+      });
+      $("usage-detail-tools").hidden = state.enhancedLayout !== "details";
+      drawUsageResults();
+    };
+  });
   $("period").onchange = (e) => {
     state.period = e.target.value;
     renderUsage();
@@ -535,6 +574,43 @@ function renderEnhancedUsage() {
       note(errorText(e));
     }
   };
+  $("usage-search").oninput = (e) => {
+    state.usageQuery = e.target.value;
+    drawUsageResults();
+  };
+  $("usage-expand-all").onclick = () => {
+    if (!state.data) return;
+    const collapse = usageAllExpanded(state.data);
+    for (const provider of visibleUsageTree(state.data)) {
+      const providerKey = usageProviderKey(state.data, provider);
+      if (collapse) state.usageClosedProviders.add(providerKey);
+      else state.usageClosedProviders.delete(providerKey);
+      for (const group of provider.children) {
+        const key = usageGroupKey(state.data, provider, group);
+        if (collapse) state.usageOpenGroups.delete(key);
+        else state.usageOpenGroups.add(key);
+      }
+    }
+    drawUsageResults();
+  };
+  content.addEventListener(
+    "toggle",
+    (event) => {
+      const el = event.target;
+      if (!el.isConnected) return;
+      if (el.dataset.usageProvider !== undefined) {
+        if (el.open)
+          state.usageClosedProviders.delete(el.dataset.usageProvider);
+        else state.usageClosedProviders.add(el.dataset.usageProvider);
+      } else if (el.dataset.usageGroup !== undefined) {
+        if (el.open) state.usageOpenGroups.add(el.dataset.usageGroup);
+        else state.usageOpenGroups.delete(el.dataset.usageGroup);
+      } else return;
+      updateUsageExpandLabel();
+    },
+    true,
+  );
+  updateUsageExpandLabel();
   if (state.period !== "custom" || (state.custom.from && state.custom.to))
     void loadUsage();
 }
@@ -565,7 +641,7 @@ async function loadUsage(fresh = false) {
     )
       return;
     state.data = data;
-    $("usage-results").innerHTML = usageResults(data);
+    drawUsageResults();
     // Populate initially empty filter lists without disturbing selections or open state.
     for (const key of ["providers", "accounts", "models", "agents"]) {
       const el = $("usage-filters").querySelector(
@@ -581,9 +657,112 @@ async function loadUsage(fresh = false) {
       note(errorText(e));
   }
 }
-function usageResults(data) {
-  const s = data.totals,
-    cols = state.columns.length ? state.columns : ["calls"];
+function drawUsageResults() {
+  const root = $("usage-results");
+  if (!root || !state.data) return;
+  root.innerHTML = usageResults(state.data);
+  updateUsageExpandLabel();
+}
+function usageProviderKey(data, provider) {
+  return JSON.stringify([data.grouping, provider.id]);
+}
+function usageGroupKey(data, provider, group) {
+  return JSON.stringify([data.grouping, provider.id, group.id]);
+}
+function usageRawAccount(group) {
+  const source = group.source || group;
+  if (source.children[0]?.account) return source.children[0].account;
+  try {
+    const id = JSON.parse(group.id);
+    return Array.isArray(id) ? id[1] || "" : "";
+  } catch {
+    return "";
+  }
+}
+function usageMatches(values, query) {
+  return values.some((value) =>
+    String(value || "")
+      .toLowerCase()
+      .includes(query),
+  );
+}
+function visibleUsageTree(data) {
+  const query = state.usageQuery.trim().toLowerCase();
+  return data.groups
+    .map((provider) => {
+      const providerMatch =
+        !query || usageMatches([provider.label, provider.id], query);
+      const children = provider.children
+        .map((group) => {
+          const groupMatch =
+            providerMatch ||
+            usageMatches(
+              [
+                group.label,
+                data.grouping === "account" ? usageRawAccount(group) : group.id,
+              ],
+              query,
+            );
+          const leaves = groupMatch
+            ? group.children
+            : group.children.filter((leaf) =>
+                usageMatches(
+                  [
+                    leaf.label,
+                    leaf.model,
+                    leaf.account,
+                    leaf.accountName,
+                    leaf.provider,
+                    leaf.providerName,
+                  ],
+                  query,
+                ),
+              );
+          if (!groupMatch && !leaves.length) return null;
+          return { ...group, source: group, children: leaves };
+        })
+        .filter(Boolean);
+      if (!providerMatch && !children.length) return null;
+      return { ...provider, source: provider, children };
+    })
+    .filter(Boolean);
+}
+function usageAllExpanded(data) {
+  const providers = visibleUsageTree(data);
+  return (
+    providers.length > 0 &&
+    providers.every(
+      (provider) =>
+        !state.usageClosedProviders.has(usageProviderKey(data, provider)) &&
+        provider.children.every((group) =>
+          state.usageOpenGroups.has(usageGroupKey(data, provider, group)),
+        ),
+    )
+  );
+}
+function updateUsageExpandLabel() {
+  const button = $("usage-expand-all");
+  if (!button) return;
+  button.textContent =
+    state.data && usageAllExpanded(state.data) ? "收起全部" : "展开全部";
+}
+function usagePanelHeading(data) {
+  return (
+    '<div class="panel-title"><h2>' +
+    esc(data.period.label) +
+    " · " +
+    (data.grouping === "account"
+      ? "供应商 → 账号 → 模型"
+      : "供应商 → 模型 → 账号") +
+    '</h2><span class="muted">' +
+    esc(data.period.from) +
+    " — " +
+    esc(data.period.to) +
+    "</span></div>"
+  );
+}
+function usageMetricTable(data) {
+  const cols = state.columns.length ? state.columns : ["calls"];
   const row = (item, label, cls) =>
     '<tr class="' +
     cls +
@@ -616,6 +795,243 @@ function usageResults(data) {
         );
     }
   }
+  return (
+    '<section class="panel">' +
+    usagePanelHeading(data) +
+    '<div class="table-wrap"><table><thead><tr><th>项目</th>' +
+    cols
+      .map(
+        (k) =>
+          "<th>" +
+          esc(state.cap.metrics.find((m) => m.id === k)?.label || k) +
+          "</th>",
+      )
+      .join("") +
+    "</tr></thead><tbody>" +
+    (body ||
+      '<tr><td colspan="' +
+        (cols.length + 1) +
+        '" class="empty">当前范围没有调用记录</td></tr>') +
+    "</tbody></table></div></section>"
+  );
+}
+function usageKindBadge(group) {
+  if (group.kind === "quota-only") return '<span class="badge">无调用</span>';
+  if (group.kind === "api-key") return '<span class="badge">API 密钥组</span>';
+  if (group.kind === "unknown") return '<span class="badge">未知账号</span>';
+  return "";
+}
+function usageIdentity(item, subtitle = "", badge = "") {
+  return (
+    '<div class="usage-identity"><div class="usage-name" title="' +
+    esc(item.label) +
+    '"><span>' +
+    esc(item.label) +
+    "</span>" +
+    badge +
+    "</div>" +
+    (subtitle
+      ? '<div class="usage-subtitle">' + esc(subtitle) + "</div>"
+      : "") +
+    "</div>"
+  );
+}
+function usageMetricCell(item, key, className = "", detail = "") {
+  return (
+    '<div class="usage-metric ' +
+    className +
+    '"><div class="usage-metric-value">' +
+    esc(metric(key, item[key], item)) +
+    "</div>" +
+    (detail
+      ? '<div class="usage-metric-detail">' + esc(detail) + "</div>"
+      : "") +
+    "</div>"
+  );
+}
+function usageStatusCell(item) {
+  const errors = Number(item.errors) || 0,
+    calls = Number(item.calls) || 0;
+  const text = errors ? errors + " 失败" : calls ? "正常" : "无调用";
+  const detail = errors ? globalThis.UsageView.errorRate(errors, calls) : "";
+  return (
+    '<div class="usage-status' +
+    (errors ? " bad" : "") +
+    '"><div>' +
+    esc(text) +
+    "</div>" +
+    (detail
+      ? '<div class="usage-metric-detail">' + esc(detail) + "</div>"
+      : "") +
+    "</div>"
+  );
+}
+function usageShareCells(item, siblings) {
+  const key =
+      state.sort === "costUsd"
+        ? "costUsd"
+        : state.sort === "calls"
+          ? "calls"
+          : "tokens",
+    label =
+      key === "costUsd"
+        ? "费用占比"
+        : key === "calls"
+          ? "调用占比"
+          : "Token 占比";
+  const value = Math.max(0, Number(item[key]) || 0),
+    values = siblings.map((sibling) => Math.max(0, Number(sibling[key]) || 0)),
+    total = values.reduce((sum, number) => sum + number, 0),
+    max = values.reduce((max, number) => Math.max(max, number), 0),
+    share = total > 0 ? value / total : 0,
+    width = max > 0 ? Math.min(100, (value / max) * 100) : 0,
+    percent = globalThis.UsageView.percent(share);
+  return (
+    usageMetricCell(item, "tokens", "usage-tokens") +
+    '<div class="usage-share"><div class="usage-bar" role="img" aria-label="' +
+    esc(label + " " + percent) +
+    '"><span style="width:' +
+    width.toFixed(1) +
+    '%"></span></div></div><div class="usage-share-label" title="' +
+    esc(label) +
+    '">' +
+    esc(percent) +
+    "</div>"
+  );
+}
+function usageSummaryCells(item, siblings) {
+  return (
+    usageMetricCell(item, "calls", "usage-calls") +
+    usageShareCells(item, siblings) +
+    usageMetricCell(
+      item,
+      "costUsd",
+      "usage-cost" + (item.unpriced ? " unpriced" : ""),
+    ) +
+    usageStatusCell(item)
+  );
+}
+function usageDetailTree(data) {
+  const chevron =
+      '<span class="usage-chevron" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m4 6 4 4 4-4"/></svg></span>',
+    secondLabel = data.grouping === "account" ? "账号" : "模型",
+    leafLabel = data.grouping === "account" ? "模型" : "账号";
+  const body = visibleUsageTree(data)
+    .map((provider) => {
+      const providerKey = usageProviderKey(data, provider),
+        sourceProvider = provider.source || provider;
+      const groups = provider.children
+        .map((group) => {
+          const groupKey = usageGroupKey(data, provider, group),
+            sourceGroup = group.source || group,
+            rawAccount =
+              data.grouping === "account" ? usageRawAccount(group) : "",
+            subtitle =
+              data.grouping === "account"
+                ? [
+                    rawAccount && rawAccount !== group.label ? rawAccount : "",
+                    sourceGroup.children.length + " 个模型",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")
+                : sourceGroup.children.length + " 个账号";
+          const leaves = group.children
+            .map((leaf) => {
+              const rawLeafAccount =
+                  data.grouping === "model" &&
+                  leaf.account &&
+                  leaf.account !== leaf.accountName
+                    ? leaf.account
+                    : "",
+                split =
+                  "输入 " +
+                  metric("input", leaf.input, leaf) +
+                  " · 输出 " +
+                  metric("output", leaf.output, leaf) +
+                  " · 缓存 " +
+                  metric(
+                    "cacheRead",
+                    (Number(leaf.cacheRead) || 0) +
+                      (Number(leaf.cacheWrite) || 0),
+                    leaf,
+                  ),
+                error = leaf.errors
+                  ? leaf.errors +
+                    " 失败 · " +
+                    globalThis.UsageView.errorRate(leaf.errors, leaf.calls)
+                  : "";
+              return (
+                '<div class="usage-leaf-row usage-leaf-grid">' +
+                usageIdentity(
+                  leaf,
+                  [rawLeafAccount, split].filter(Boolean).join(" · "),
+                ) +
+                usageMetricCell(
+                  leaf,
+                  "calls",
+                  "usage-calls" + (leaf.errors ? " bad" : ""),
+                  error,
+                ) +
+                usageShareCells(leaf, sourceGroup.children) +
+                usageMetricCell(
+                  leaf,
+                  "costUsd",
+                  "usage-cost" + (leaf.unpriced ? " unpriced" : ""),
+                ) +
+                '<span class="usage-chevron-spacer"></span></div>'
+              );
+            })
+            .join("");
+          return (
+            '<details class="usage-group" data-usage-group="' +
+            esc(groupKey) +
+            '"' +
+            (state.usageOpenGroups.has(groupKey) ? " open" : "") +
+            '><summary class="usage-group-row usage-detail-grid">' +
+            usageIdentity(group, subtitle, usageKindBadge(group)) +
+            usageSummaryCells(group, sourceProvider.children) +
+            chevron +
+            '</summary><div class="usage-leaves"><div class="usage-leaf-head usage-leaf-grid"><span>' +
+            leafLabel +
+            "</span><span>调用</span><span>TOKEN</span><span></span><span>占比</span><span>费用</span><span></span></div>" +
+            (leaves || '<div class="usage-leaf-empty">当前没有明细记录</div>') +
+            "</div></details>"
+          );
+        })
+        .join("");
+      return (
+        '<details class="usage-provider" data-usage-provider="' +
+        esc(providerKey) +
+        '"' +
+        (state.usageClosedProviders.has(providerKey) ? "" : " open") +
+        '><summary class="usage-provider-row usage-detail-grid">' +
+        usageIdentity(
+          provider,
+          provider.children.length + " 个" + secondLabel,
+        ) +
+        usageSummaryCells(provider, data.groups) +
+        chevron +
+        '</summary><div class="usage-groups">' +
+        (groups || '<div class="usage-leaf-empty">当前没有明细记录</div>') +
+        "</div></details>"
+      );
+    })
+    .join("");
+  return (
+    '<section class="panel usage-detail-panel">' +
+    usagePanelHeading(data) +
+    '<div class="usage-detail"><div class="usage-detail-head usage-detail-grid"><span>项目</span><span>调用</span><span>TOKEN</span><span></span><span>占比</span><span>费用</span><span>状态</span><span></span></div>' +
+    (body ||
+      '<div class="empty">' +
+        (state.usageQuery
+          ? "没有匹配的账号、供应商或模型"
+          : "当前范围没有调用记录") +
+        "</div>") +
+    "</div></section>"
+  );
+}
+function usageResults(data) {
+  const s = data.totals;
   return (
     '<section class="stats-strip" aria-label="用量概览">' +
     [
@@ -655,31 +1071,11 @@ function usageResults(data) {
           "</span></div>",
       )
       .join("") +
-    '</section><section class="panel"><div class="panel-title"><h2>' +
-    esc(data.period.label) +
-    " · " +
-    (data.grouping === "account"
-      ? "供应商 → 账号 → 模型"
-      : "供应商 → 模型 → 账号") +
-    '</h2><span class="muted">' +
-    esc(data.period.from) +
-    " — " +
-    esc(data.period.to) +
-    '</span></div><div class="table-wrap"><table><thead><tr><th>项目</th>' +
-    cols
-      .map(
-        (k) =>
-          "<th>" +
-          esc(state.cap.metrics.find((m) => m.id === k)?.label || k) +
-          "</th>",
-      )
-      .join("") +
-    "</tr></thead><tbody>" +
-    (body ||
-      '<tr><td colspan="' +
-        (cols.length + 1) +
-        '" class="empty">当前范围没有调用记录</td></tr>') +
-    '</tbody></table></div></section><section class="panel"><div class="panel-title"><h2>当前账号额度与余额</h2><span class="muted">账号整体状态，不按模型分摊</span></div>' +
+    "</section>" +
+    (state.enhancedLayout === "details"
+      ? usageDetailTree(data)
+      : usageMetricTable(data)) +
+    '<section class="panel"><div class="panel-title"><h2>当前账号额度与余额</h2><span class="muted">账号整体状态，不按模型分摊</span></div>' +
     quotaCards(data.quotas) +
     '</section><p class="footer-note">用量读取：' +
     esc(data.generatedAt) +
@@ -1604,8 +2000,7 @@ async function refreshDisplay() {
   if (changed && state.page === "usage") {
     if (state.usageView === "original")
       originalView?.updateDisplay({ ...state.settings, ...next.effective });
-    else if (state.data && $("usage-results"))
-      $("usage-results").innerHTML = usageResults(state.data);
+    else if (state.data && $("usage-results")) drawUsageResults();
   }
 }
 async function confirmAction(title, message) {
