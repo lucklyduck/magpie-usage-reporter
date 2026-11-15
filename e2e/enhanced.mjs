@@ -240,14 +240,14 @@ export async function checkEnhancedData(browser) {
     await share(provider, "占当前范围 74.3%", (1676 / 2256) * 100);
     await share(account, "占供应商 67.2%", (1126 / 1676) * 100);
     for (const sort of ["costUsd", "calls", "name"]) {
-      await refresh(() => page.locator("#sort").selectOption(sort));
+      await refresh(() => page.locator(`[data-sort="${sort}"]`).click());
       await share(provider, "占当前范围 74.3%", (1676 / 2256) * 100);
       await expect(account.locator("[data-tree-toggle]")).toHaveAttribute(
         "aria-expanded",
         "true",
       );
     }
-    await refresh(() => page.locator("#period").selectOption("this-week"));
+    await refresh(() => page.locator('[data-period="this-week"]').click());
     await expect(account.locator("[data-tree-toggle]")).toHaveAttribute(
       "aria-expanded",
       "true",

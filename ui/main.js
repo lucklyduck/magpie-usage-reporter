@@ -427,20 +427,26 @@ function renderEnhancedUsage() {
           "</button>",
       )
       .join("") +
-    '</div><label>周期 <select id="period">' +
+    '</div><div class="toolbar-choice"><span>周期</span><div id="period" class="segmented" role="group" aria-label="周期">' +
     state.cap.periods
-      .map((p) => option(p.id, p.label, state.period === p.id))
+      .map(
+        (p) =>
+          `<button type="button" data-period="${esc(p.id)}" aria-pressed="${state.period === p.id}" class="${state.period === p.id ? "active" : ""}">${esc(p.label)}</button>`,
+      )
       .join("") +
-    '</select></label><label>排序 <select id="sort">' +
+    '</div></div><div class="toolbar-choice"><span>排序</span><div id="sort" class="segmented" role="group" aria-label="排序">' +
     [
       ["tokens", "Token"],
       ["costUsd", "费用"],
       ["calls", "调用"],
       ["name", "名称"],
     ]
-      .map(([id, t]) => option(id, t, state.sort === id))
+      .map(
+        ([id, t]) =>
+          `<button type="button" data-sort="${id}" aria-pressed="${state.sort === id}" class="${state.sort === id ? "active" : ""}">${t}</button>`,
+      )
       .join("") +
-    '</select></label><label><input type="checkbox" id="cache-toggle" ' +
+    '</div></div><label><input type="checkbox" id="cache-toggle" ' +
     (state.includeCache ? "checked" : "") +
     '> Token 含缓存</label><label><input type="checkbox" id="zero-toggle" ' +
     (state.showZeroAccounts ? "checked" : "") +
@@ -495,14 +501,27 @@ function renderEnhancedUsage() {
     }
     syncUsageTree();
   };
-  $("period").onchange = (e) => {
-    state.period = e.target.value;
-    renderUsage();
-  };
-  $("sort").onchange = (e) => {
-    state.sort = e.target.value;
-    loadUsage();
-  };
+  content.querySelectorAll("[data-period]").forEach((button) => {
+    button.onclick = () => {
+      if (state.period === button.dataset.period) return;
+      state.period = button.dataset.period;
+      renderUsage();
+      $("period").querySelector(".active").focus({ preventScroll: true });
+    };
+  });
+  content.querySelectorAll("[data-sort]").forEach((button) => {
+    button.onclick = () => {
+      if (state.sort === button.dataset.sort) return;
+      state.sort = button.dataset.sort;
+      content.querySelectorAll("[data-sort]").forEach((item) => {
+        const selected = item.dataset.sort === state.sort;
+        item.classList.toggle("active", selected);
+        item.setAttribute("aria-pressed", String(selected));
+      });
+      if (state.period !== "custom" || (state.custom.from && state.custom.to))
+        void loadUsage();
+    };
+  });
   $("cache-toggle").onchange = (e) => {
     state.includeCache = e.target.checked;
     loadUsage();

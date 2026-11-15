@@ -531,12 +531,23 @@ h3 {
   min-height: 34px;
   margin-bottom: 10px;
 }
-.toolbar > label {
+.toolbar > label,
+.toolbar-choice {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   color: var(--muted);
   font-size: 11.5px;
+}
+.toolbar-choice {
+  max-width: 100%;
+}
+.toolbar-choice > span {
+  flex: none;
+}
+.toolbar-choice .segmented {
+  min-width: 0;
+  flex-wrap: wrap;
 }
 .segmented {
   display: inline-flex;
