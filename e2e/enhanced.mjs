@@ -173,7 +173,11 @@ export async function checkEnhancedData(browser) {
     await page.goto(`http://127.0.0.1:${service.port}`);
     const provider = node(page, "account", "p1");
     const account = node(page, "account", "p1", accountKey("p1", "alice"));
+    const providerCount = page.locator(
+      ".stats-strip .stat:last-child .stat-value",
+    );
     await page.locator("#usage-results .provider-row").first().waitFor();
+    await expect(providerCount).toHaveText("4");
     assert.equal(
       await page.locator(".leaf-row:visible").count(),
       0,
@@ -255,6 +259,7 @@ export async function checkEnhancedData(browser) {
     await providers.selectOption("p2");
     await refresh(apply);
     await expect(provider).toHaveCount(0);
+    await expect(providerCount).toHaveText("4");
     await page.getByRole("button", { name: "全部收起", exact: true }).click();
     await providers.selectOption([]);
     await refresh(apply);
@@ -268,6 +273,7 @@ export async function checkEnhancedData(browser) {
     await providers.selectOption("p0");
     await refresh(apply);
     await share(node(page, "account", "p0"), "占当前范围 —", 0);
+    await expect(providerCount).toHaveText("4");
     await providers.selectOption([]);
     await refresh(apply);
     await page.locator('[data-column="tokens"]').uncheck();
@@ -280,6 +286,7 @@ export async function checkEnhancedData(browser) {
     await page.getByRole("button", { name: "全部收起", exact: true }).click();
     rows.push({ ...rows[0], provider: "p4", providerName: "新增供应商" });
     await refresh(() => page.locator("#refresh").click());
+    await expect(providerCount).toHaveText("5");
     await expect(
       node(page, "account", "p4").locator("[data-tree-toggle]"),
     ).toHaveAttribute("aria-expanded", "true");

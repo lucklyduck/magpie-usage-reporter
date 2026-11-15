@@ -803,7 +803,8 @@ function usageResults(data) {
       [
         "供应商",
         "calls",
-        groups.length,
+        data.options.providers.filter((provider) => !provider.unavailable)
+          .length,
         new Set([
           ...data.rows.map((r) => JSON.stringify([r.provider, r.account])),
           ...data.quotas.cards.map((q) =>

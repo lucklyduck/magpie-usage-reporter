@@ -25,6 +25,19 @@ export async function checkZeroUsage(browser) {
       ...stats(usage),
     });
   const f = makeFixture({ rows });
+  const load = f.source.load.bind(f.source);
+  f.source.load = async (query) => {
+    const data = await load(query);
+    data.options.providers = [
+      ...new Map(
+        rows.map((row) => [
+          row.provider,
+          { id: row.provider, label: row.providerName },
+        ]),
+      ).values(),
+    ];
+    return data;
+  };
   const quotas = f.source.quotas.bind(f.source);
   f.source.quotas = async () => {
     const data = await quotas();
@@ -80,8 +93,12 @@ export async function checkZeroUsage(browser) {
         const unusedModels = view.locator(".leaf-row").filter({
           hasText: "unused-model",
         });
+        const providerCount = view.locator(
+          ".stats-strip .stat:last-child .stat-value",
+        );
         await expect(unusedProvider).toHaveCount(1);
         await expect(checkbox()).toBeChecked();
+        await expect(providerCount).toHaveText("9");
         await view
           .getByRole("button", { name: "全部展开", exact: true })
           .click();
@@ -99,11 +116,8 @@ export async function checkZeroUsage(browser) {
           view.locator(".group-row").filter({ hasText: "无调用账号" }),
         ).toHaveCount(1);
         assert.deepEqual(
-          (await view.locator(".stats-strip .stat").allTextContents()).slice(
-            0,
-            3,
-          ),
-          totals.slice(0, 3),
+          await view.locator(".stats-strip .stat").allTextContents(),
+          totals,
         );
         for (const provider of [
           "cache-only",
@@ -131,12 +145,25 @@ export async function checkZeroUsage(browser) {
           view.locator(".group-row").filter({ hasText: "unused-model" }),
         ).toHaveCount(0);
         await expect(unusedProvider).toHaveCount(0);
+        await expect(providerCount).toHaveText("9");
         await checkbox().check();
         await expect(
           view.locator(".group-row").filter({ hasText: "unused-model" }),
         ).toHaveCount(1);
         await expect(unusedProvider).toHaveCount(1);
+        await expect(providerCount).toHaveText("9");
         await checkbox().uncheck();
+        await expect(providerCount).toHaveText("9");
+        await view.getByRole("button", { name: "按账号", exact: true }).click();
+        await expect(
+          view.getByRole("heading", { name: /供应商 → 账号 → 模型/ }),
+        ).toBeVisible();
+        await expect(providerCount).toHaveText("9");
+        await view.locator("#zero-toggle").uncheck();
+        await expect(
+          view.locator(".group-row").filter({ hasText: "无调用账号" }),
+        ).toHaveCount(0);
+        await expect(providerCount).toHaveText("9");
 
         await view
           .getByRole("tab", { name: "原版用量树", exact: true })
