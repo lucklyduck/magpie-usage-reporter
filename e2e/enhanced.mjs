@@ -247,7 +247,7 @@ export async function checkEnhancedData(browser) {
         "true",
       );
     }
-    await refresh(() => page.locator('[data-period="this-week"]').click());
+    await refresh(() => page.locator('[data-period="7d"]').click());
     await expect(account.locator("[data-tree-toggle]")).toHaveAttribute(
       "aria-expanded",
       "true",

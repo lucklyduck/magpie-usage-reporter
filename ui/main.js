@@ -33,6 +33,12 @@ const esc = (value) =>
   );
 const token = document.querySelector('meta[name="usage-token"]').content;
 const endpoint = (path) => new URL("api/v1/" + path, location.href);
+const usagePeriods = [
+  { id: "today", label: "今日" },
+  { id: "7d", label: "近七天" },
+  { id: "30d", label: "近30天" },
+  { id: "custom", label: "自选日期" },
+];
 const state = {
   page: "usage",
   usageView:
@@ -428,7 +434,7 @@ function renderEnhancedUsage() {
       )
       .join("") +
     '</div><div class="toolbar-choice"><span>周期</span><div id="period" class="segmented" role="group" aria-label="周期">' +
-    state.cap.periods
+    usagePeriods
       .map(
         (p) =>
           `<button type="button" data-period="${esc(p.id)}" aria-pressed="${state.period === p.id}" class="${state.period === p.id ? "active" : ""}">${esc(p.label)}</button>`,
@@ -2014,7 +2020,9 @@ try {
   if (p) {
     state.columns = p.columns;
     state.grouping = p.grouping;
-    state.period = p.period;
+    state.period = usagePeriods.some((period) => period.id === p.period)
+      ? p.period
+      : "today";
     state.sort = p.sort;
   }
   state.includeCache = state.settings.includeCache;
