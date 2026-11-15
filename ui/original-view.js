@@ -18,6 +18,7 @@ export function createOriginalState() {
     sort: "tokens",
     query: "",
     includeCache: true,
+    showZeroUsage: true,
     providers: new Set(),
     accounts: new Set(),
     data: null,
@@ -47,6 +48,7 @@ export function mountOriginal(root, { api, settings, state }) {
       .map(([id, name]) => `<option value="${id}">${name}</option>`)
       .join("")}</select></label>
     <label><input type="checkbox" data-original="cache"> Token 含缓存</label>
+    <label><input type="checkbox" data-original="zero-usage"> 显示 0 用量模型和供应商</label>
     <button type="button" data-original="refresh" class="secondary">刷新原版用量</button>
   </div><p class="footer-note">原版视图使用独立周期和搜索；切换标签会保留各自的筛选。</p>
   <div class="original-tiles" data-original="summary"></div>
@@ -58,6 +60,7 @@ export function mountOriginal(root, { api, settings, state }) {
   $("sort").value = state.sort;
   $("search").value = state.query;
   $("cache").checked = state.includeCache;
+  $("zero-usage").checked = state.showZeroUsage;
   let disposed = false,
     request = 0,
     controller,
@@ -65,8 +68,35 @@ export function mountOriginal(root, { api, settings, state }) {
     error = "";
   let currency = settings.currency === "CNY" ? "cny" : "usd";
   const hasData = () => state.data && state.loadedPeriod === state.period;
+  const hasUsage = (item) =>
+    [
+      item.calls,
+      item.errors,
+      item.retried,
+      V.tokenTotal(item, true),
+      item.reasoning,
+      item.cost,
+      item.unpriced,
+      item.credits,
+    ].some((value) => Number(value) || 0);
   const visible = () =>
-    V.sortProviders(state.data?.providers || [], state.sort, state.includeCache)
+    V.sortProviders(
+      (state.data?.providers || [])
+        .filter((provider) => state.showZeroUsage || hasUsage(provider))
+        .map((provider) =>
+          state.showZeroUsage
+            ? provider
+            : {
+                ...provider,
+                accounts: provider.accounts.map((account) => ({
+                  ...account,
+                  models: account.models.filter(hasUsage),
+                })),
+              },
+        ),
+      state.sort,
+      state.includeCache,
+    )
       .map((p) => ({ ...p, accounts: V.visibleAccounts(p, state.query) }))
       .filter((p) => p.accounts.length);
   const compare = (a, b) =>
@@ -207,6 +237,10 @@ export function mountOriginal(root, { api, settings, state }) {
   };
   $("cache").onchange = (e) => {
     state.includeCache = e.target.checked;
+    draw();
+  };
+  $("zero-usage").onchange = (e) => {
+    state.showZeroUsage = e.target.checked;
     draw();
   };
   $("search").oninput = (e) => {

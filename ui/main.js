@@ -59,6 +59,7 @@ const state = {
   custom: {},
   includeCache: true,
   showZeroAccounts: true,
+  showZeroUsage: true,
   treeExpanded: new Map(),
   editor: null,
   draft: null,
@@ -443,7 +444,9 @@ function renderEnhancedUsage() {
     (state.includeCache ? "checked" : "") +
     '> Token 含缓存</label><label><input type="checkbox" id="zero-toggle" ' +
     (state.showZeroAccounts ? "checked" : "") +
-    "> 显示无调用账号</label></div>" +
+    '> 显示无调用账号</label><label><input type="checkbox" id="zero-usage-toggle" ' +
+    (state.showZeroUsage ? "checked" : "") +
+    "> 显示 0 用量模型和供应商</label></div>" +
     (state.period === "custom"
       ? '<div class="toolbar date-controls"><label>开始 ' +
         input("from", state.custom.from || "", "date") +
@@ -482,7 +485,7 @@ function renderEnhancedUsage() {
     const control = event.target.closest("[data-tree-level]");
     if (!control || !state.data) return;
     const level = control.dataset.treeLevel;
-    for (const provider of state.data.groups) {
+    for (const provider of visibleUsageGroups(state.data)) {
       state.treeExpanded.set(treeKey(state.data, provider), level !== "none");
       for (const group of provider.children)
         state.treeExpanded.set(
@@ -507,6 +510,10 @@ function renderEnhancedUsage() {
   $("zero-toggle").onchange = (e) => {
     state.showZeroAccounts = e.target.checked;
     loadUsage();
+  };
+  $("zero-usage-toggle").onchange = (e) => {
+    state.showZeroUsage = e.target.checked;
+    renderUsageResults();
   };
   content.querySelectorAll("[data-grouping]").forEach(
     (b) =>
@@ -544,6 +551,7 @@ function renderEnhancedUsage() {
     try {
       state.settings = await api("settings", "PATCH", {
         ...state.settings,
+        showZeroUsage: state.showZeroUsage,
         preferences: {
           columns: state.columns,
           grouping: state.grouping,
@@ -601,6 +609,35 @@ async function loadUsage(fresh = false) {
     if (request === state.request && e.name !== "AbortError")
       note(errorText(e));
   }
+}
+function visibleUsageGroups(data) {
+  if (state.showZeroUsage) return data.groups;
+  const hasUsage = (item) =>
+    [
+      "calls",
+      "errors",
+      "retried",
+      "canceled",
+      "input",
+      "output",
+      "cacheRead",
+      "cacheWrite",
+      "reasoning",
+      "costUsd",
+      "unpriced",
+      "credits",
+      "tokens",
+    ].some((key) => Number(item[key]) || 0);
+  return data.groups.filter(hasUsage).map((provider) => ({
+    ...provider,
+    children:
+      data.grouping === "model"
+        ? provider.children.filter(hasUsage)
+        : provider.children.map((account) => ({
+            ...account,
+            children: account.children.filter(hasUsage),
+          })),
+  }));
 }
 function treeKey(data, provider, group) {
   return JSON.stringify(
@@ -676,6 +713,7 @@ function usageTokenCells(item, parent, scope) {
 }
 function usageResults(data) {
   const s = data.totals,
+    groups = visibleUsageGroups(data),
     cols = state.columns.length ? state.columns : ["calls"];
   const row = (item, label, cls, parent, scope, attributes) =>
     '<tr class="' +
@@ -701,7 +739,7 @@ function usageResults(data) {
     badge +
     "</div>";
   let body = "";
-  for (const p of data.groups) {
+  for (const p of groups) {
     const providerKey = treeKey(data, p),
       providerOpen = treeOpen(providerKey, true);
     body += row(
@@ -765,7 +803,7 @@ function usageResults(data) {
       [
         "供应商",
         "calls",
-        data.groups.length,
+        groups.length,
         new Set([
           ...data.rows.map((r) => JSON.stringify([r.provider, r.account])),
           ...data.quotas.cards.map((q) =>
@@ -1697,12 +1735,14 @@ function renderSettings() {
     for (const d of defs.filter((d) => !displayKeys.has(d.id)))
       patch[d.id] =
         d.type === "boolean"
-          ? v.get(d.id) === "on"
+          ? v.has(d.id)
           : d.type === "number"
             ? Number(v.get(d.id))
             : v.get(d.id);
     try {
       state.settings = await api("settings", "PATCH", patch);
+      state.showZeroUsage = state.settings.showZeroUsage;
+      originalState.showZeroUsage = state.settings.showZeroUsage;
       await refreshDisplay();
       scheduleRefresh();
       toast("设置已保存");
@@ -1959,6 +1999,8 @@ try {
   }
   state.includeCache = state.settings.includeCache;
   state.showZeroAccounts = state.settings.showZeroAccounts;
+  state.showZeroUsage = state.settings.showZeroUsage !== false;
+  originalState.showZeroUsage = state.showZeroUsage;
   await renderPage();
   initialized = true;
   $("display-status").textContent = displayDescription(state.display);

@@ -8,6 +8,7 @@ import { checkSandbox } from "./sandbox.mjs";
 import { checkUntrustedSandbox, checkReconnect } from "./security.mjs";
 import { checkOriginal } from "./original.mjs";
 import { checkEnhanced, checkEnhancedData } from "./enhanced.mjs";
+import { checkZeroUsage } from "./zero-usage.mjs";
 import { deliveryCases, checkDeliveryDetails } from "./deliveries.mjs";
 import { checkHostIntegration } from "./host.mjs";
 import { checkUpgradeStartup } from "./upgrade.mjs";
@@ -35,6 +36,7 @@ try {
   await checkHostIntegration(browser);
   await checkUpgradeStartup(browser);
   await checkEnhancedData(browser);
+  await checkZeroUsage(browser);
   await checkSandbox(browser, base, deliveries);
   await checkReconnect(browser, base);
   const page = await browser.newPage({
@@ -147,6 +149,7 @@ try {
         "account/model views",
         "enhanced hierarchy, session folding and keyboard focus across refreshes",
         "Token shares, filtering, cache toggles and zero denominators",
+        "zero-usage model/provider visibility, sandbox and saved defaults",
         "subscription preview/save/reload",
         "webhook channel test",
         "failed, sent and partial delivery details with per-channel confirmations",
@@ -159,6 +162,7 @@ try {
         "outputs/enhanced-desktop.png",
         "outputs/enhanced-dark.png",
         "outputs/enhanced-mobile.png",
+        "outputs/zero-usage-desktop.png",
       ],
     }),
   );
