@@ -355,7 +355,7 @@ function filterControls(filters, scope = "usage") {
           "</label>",
       )
       .join("") +
-    '</div><p class="footer-note">多选列表为空表示不限制该项；不同维度同时生效。按 Ctrl / Command 可多选。</p></div>'
+    '</div><p class="footer-note">多选列表为空表示不限制该项；不同维度同时生效。按 Ctrl / Command 可多选。</p>'
   );
 }
 function readFilters(root) {
@@ -469,7 +469,7 @@ function renderEnhancedUsage() {
           "</label>",
       )
       .join("") +
-    '</div><div class="actions" style="margin-top:16px"><button id="apply-filters">应用筛选</button><button id="reset-filters" class="secondary">清除筛选</button><button id="save-view" class="secondary">保存为默认显示</button></div></details>' +
+    '</div><div class="actions" style="margin-top:16px"><button id="apply-filters">应用筛选</button><button id="reset-filters" class="secondary">清除筛选</button><button id="save-view" class="secondary">保存为默认显示</button></div></div></details>' +
     '<div id="usage-results"></div>';
   renderUsageResults();
   content.onclick = (event) => {
@@ -1385,7 +1385,7 @@ function openSubscription(draft) {
     scheduleInputs(d.schedule) +
     '</div><details class="filter-panel" id="subscription-filters"><summary>数据范围</summary><div class="filter-body">' +
     filterControls(d.filters, "subscription") +
-    '</details><div class="section-heading">报表内容</div><div class="form-grid">' +
+    '</div></details><div class="section-heading">报表内容</div><div class="form-grid">' +
     field(
       "文字布局",
       '<select name="layout">' +
