@@ -22,6 +22,10 @@ const usageResponse = (page) =>
 export async function checkEnhanced(page, view) {
   const results = view.locator("#usage-results");
   await results.locator(".provider-row").first().waitFor();
+  await expect(
+    view.getByRole("tablist", { name: "用量视图", exact: true }),
+  ).toHaveCount(0);
+  await expect(view.locator(".original-tree")).toHaveCount(0);
   assert.equal(
     await results.locator(".leaf-row:visible").count(),
     0,
@@ -98,10 +102,6 @@ export async function checkEnhanced(page, view) {
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await view.getByRole("button", { name: "订阅", exact: true }).click();
   await view.getByRole("button", { name: "用量", exact: true }).click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await view.getByRole("tab", { name: "原版用量树", exact: true }).click();
-  await view.locator(".original-provider").first().waitFor();
-  await view.getByRole("tab", { name: "增强视图", exact: true }).click();
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await toggle.focus();
   const refreshed = usageResponse(page);

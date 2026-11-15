@@ -13,11 +13,7 @@ test("token-bearing documents cannot be read through null-origin CORS", async ()
     const document = await fetch(base, { headers: { Origin: "null" } });
     expect(document.status).toBe(200);
     expect(document.headers.has("Access-Control-Allow-Origin")).toBe(false);
-    for (const path of [
-      "app.js",
-      "original-view.js",
-      "original-assets/view.js",
-    ]) {
+    for (const path of ["app.js", "main.js", "host.js", "display-format.js"]) {
       const response = await fetch(`${base}/${path}`, {
         headers: { Origin: "null" },
       });
@@ -38,7 +34,7 @@ test("token-bearing documents cannot be read through null-origin CORS", async ()
   }
 });
 
-test("original tree uses the authenticated API and legacy URLs lead to the integrated tab", async () => {
+test("original tree API remains authenticated and legacy URLs lead to the enhanced usage page", async () => {
   const f = makeFixture(),
     server = await startServer({ port: 0, app: f.app });
   const base = `http://127.0.0.1:${server.port}`;
@@ -65,8 +61,14 @@ test("original tree uses the authenticated API and legacy URLs lead to the integ
       expect(r.status).toBe(302);
       const target = new URL(r.headers.get("Location"), `${base}/${path}`);
       expect(target.pathname).toBe("/");
-      expect(target.searchParams.get("usageView")).toBe("original");
+      expect(target.searchParams.has("usageView")).toBe(false);
     }
+    for (const path of [
+      "original-view.js",
+      "original-assets/i18n.js",
+      "original-assets/view.js",
+    ])
+      expect((await fetch(`${base}/${path}`)).status).toBe(404);
     const gone = await fetch(`${base}/original/api/tree`, { headers });
     expect(gone.status).toBe(410);
   } finally {

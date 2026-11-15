@@ -147,12 +147,6 @@ export async function checkHostIntegration(browser) {
         );
         assert.match(await view.locator("#usage-results").innerText(), /¥/);
         assert.match(await view.locator("#usage-results").innerText(), /万/);
-        await view
-          .getByRole("tab", { name: "原版用量树", exact: true })
-          .click();
-        await view.locator(".original-provider").first().waitFor();
-        assert.match(await view.locator(".original-tiles").innerText(), /¥/);
-        assert.match(await view.locator(".original-tiles").innerText(), /万/);
         await view.getByRole("button", { name: "设置", exact: true }).click();
         const form = view.locator("#settings-form");
         assert.equal(

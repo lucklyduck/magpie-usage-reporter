@@ -40,12 +40,10 @@ try {
     ["telegram", "onebot11", "smtp", "webhook"],
   );
   for (const path of [
-    "/original-view.js",
+    "/app.js",
     "/host.js",
     "/main.js",
     "/display-format.js",
-    "/original-assets/i18n.js",
-    "/original-assets/view.js",
   ]) {
     const resource = await fetch(base + path, { headers: { Origin: "null" } });
     assert.equal(resource.status, 200);
@@ -74,7 +72,7 @@ try {
     channels: cap.channels.map((c) => c.id),
     formats: cap.formats,
     isolatedProductionInstall: true,
-    originalViewAssets: true,
+    singleUsageViewAssets: true,
     tokenDocumentCorsProtected: true,
     serviceProtocol: health.serviceProtocol,
     hostAndDisplayAssets: true,

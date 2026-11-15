@@ -6,7 +6,6 @@ import { notificationAdapters } from "../lib/channels/index.mjs";
 import { makeFixture, settled } from "../test/helpers.mjs";
 import { checkSandbox } from "./sandbox.mjs";
 import { checkUntrustedSandbox, checkReconnect } from "./security.mjs";
-import { checkOriginal } from "./original.mjs";
 import { checkEnhanced, checkEnhancedData } from "./enhanced.mjs";
 import { checkZeroUsage } from "./zero-usage.mjs";
 import { deliveryCases, checkDeliveryDetails } from "./deliveries.mjs";
@@ -44,10 +43,9 @@ try {
   });
   page.on("pageerror", (e) => errors.push(e.message));
   await page.clock.install();
-  await page.goto(base);
+  await page.goto(base + "?usageView=original");
   await page.getByRole("heading", { name: "当前账号额度与余额" }).waitFor();
   await checkEnhanced(page, page);
-  await checkOriginal(page, page);
   await page.getByRole("button", { name: "按模型", exact: true }).click();
   await page.getByRole("heading", { name: /供应商 → 模型 → 账号/ }).waitFor();
   mkdirSync("outputs", { recursive: true });
@@ -142,7 +140,7 @@ try {
         "HTTP and local HTTPS Magpie service proxies",
         "Magpie sandbox with direct and proxied service URLs",
         "external opaque origins cannot read tokens",
-        "integrated original view and legacy redirects",
+        "single enhanced usage page and legacy redirects",
         "expired sessions reconnect once and preserve unsaved edits",
         "sandbox saves for all four channels, subscriptions and settings",
         "form validation, Enter key, credential retention and reload",

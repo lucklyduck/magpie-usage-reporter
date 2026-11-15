@@ -165,49 +165,6 @@ export async function checkZeroUsage(browser) {
         ).toHaveCount(0);
         await expect(providerCount).toHaveText("9");
 
-        await view
-          .getByRole("tab", { name: "原版用量树", exact: true })
-          .click();
-        const originalProviders = view.locator(".original-provider");
-        const originalUnused = originalProviders.filter({
-          hasText: "unused-provider",
-        });
-        await expect(originalUnused).toHaveCount(1);
-        await expect(checkbox()).toBeChecked();
-        await view
-          .getByRole("button", { name: "展开全部", exact: true })
-          .click();
-        await expect(
-          view
-            .locator(".original-models td")
-            .filter({ hasText: "unused-model" }),
-        ).toBeVisible();
-        await checkbox().uncheck();
-        await expect(originalUnused).toHaveCount(0);
-        await expect(
-          view
-            .locator(".original-models td")
-            .filter({ hasText: "unused-model" }),
-        ).toHaveCount(0);
-        await view.locator('[data-original="cache"]').uncheck();
-        for (const provider of [
-          "cache-only",
-          "calls-only",
-          "cost-only",
-          "free-model",
-          "credits-only",
-        ])
-          await expect(
-            originalProviders.filter({ hasText: provider }),
-          ).toHaveCount(1);
-        await view.getByLabel("搜索原版账号或模型").fill("unused-model");
-        await expect(originalProviders).toHaveCount(0);
-        await checkbox().check();
-        await expect(originalProviders).toHaveCount(1);
-        await view.getByLabel("搜索原版账号或模型").fill("");
-        await checkbox().uncheck();
-
-        await view.getByRole("tab", { name: "增强视图", exact: true }).click();
         await expect(checkbox()).not.toBeChecked();
         await view.locator("#usage-filters > summary").click();
         await view
@@ -218,12 +175,7 @@ export async function checkZeroUsage(browser) {
         await page.reload();
         await expect(checkbox()).not.toBeChecked();
         await expect(unusedProvider).toHaveCount(0);
-        await view
-          .getByRole("tab", { name: "原版用量树", exact: true })
-          .click();
-        await expect(checkbox()).not.toBeChecked();
-        await expect(originalProviders).toHaveCount(7);
-        await expect(originalUnused).toHaveCount(0);
+        await expect(enhancedProviders).toHaveCount(7);
         await view.getByRole("button", { name: "设置", exact: true }).click();
         await view.getByLabel("默认显示 0 用量模型和供应商").check();
         await view
@@ -234,9 +186,6 @@ export async function checkZeroUsage(browser) {
         assert.equal(f.app.settings().includeCache, true);
         assert.equal(f.app.settings().showZeroAccounts, true);
         await view.getByRole("button", { name: "用量", exact: true }).click();
-        await expect(checkbox()).toBeChecked();
-        await expect(originalUnused).toHaveCount(1);
-        await view.getByRole("tab", { name: "增强视图", exact: true }).click();
         await expect(checkbox()).toBeChecked();
         await expect(unusedProvider).toHaveCount(1);
         assert.deepEqual(errors, []);

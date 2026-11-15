@@ -1,5 +1,4 @@
 // Loaded only after the serving backend supports this application's API.
-import { createOriginalState, mountOriginal } from "./original-view.js";
 import { formatCount } from "./display-format.js";
 import { connectHost } from "./host.js";
 const $ = (id) => document.getElementById(id);
@@ -41,10 +40,6 @@ const usagePeriods = [
 ];
 const state = {
   page: "usage",
-  usageView:
-    new URLSearchParams(location.search).get("usageView") === "original"
-      ? "original"
-      : "enhanced",
   cap: null,
   settings: null,
   display: null,
@@ -71,9 +66,7 @@ const state = {
   draft: null,
   request: 0,
 };
-const originalState = createOriginalState();
-let originalView,
-  usageController,
+let usageController,
   settingsDirty = false,
   sessionExpired = false;
 let host,
@@ -380,41 +373,10 @@ function readFilters(root) {
 function disposeUsage() {
   ++state.request;
   usageController?.abort();
-  originalView?.dispose();
-  originalView = null;
 }
 function renderUsage() {
   disposeUsage();
-  const content = $("content");
-  content.innerHTML =
-    '<div class="usage-tabs segmented" role="tablist" aria-label="用量视图">' +
-    [
-      ["enhanced", "增强视图"],
-      ["original", "原版用量树"],
-    ]
-      .map(
-        ([id, label]) =>
-          `<button role="tab" aria-selected="${state.usageView === id}" data-usage-view="${id}" class="${state.usageView === id ? "active" : ""}">${label}</button>`,
-      )
-      .join("") +
-    '</div><div id="usage-view"></div>';
-  content.querySelectorAll("[data-usage-view]").forEach((button) => {
-    button.onclick = () => {
-      state.usageView = button.dataset.usageView;
-      renderUsage();
-    };
-  });
-  if (state.usageView === "original") {
-    originalView = mountOriginal($("usage-view"), {
-      api,
-      settings: { ...state.settings, ...state.display.effective },
-      state: originalState,
-    });
-    return;
-  }
-  renderEnhancedUsage();
-}
-function renderEnhancedUsage() {
+  $("content").innerHTML = '<div id="usage-view"></div>';
   const content = $("usage-view");
   content.innerHTML =
     '<div class="toolbar"><div class="segmented" aria-label="归类方式">' +
@@ -593,7 +555,7 @@ function renderEnhancedUsage() {
     void loadUsage();
 }
 async function loadUsage(fresh = false) {
-  if (state.page !== "usage" || state.usageView !== "enhanced") return;
+  if (state.page !== "usage") return;
   usageController?.abort();
   usageController = new AbortController();
   const request = ++state.request,
@@ -612,12 +574,7 @@ async function loadUsage(fresh = false) {
     const data = await api("usage?" + q, "GET", undefined, {
       signal: usageController.signal,
     });
-    if (
-      request !== state.request ||
-      state.page !== "usage" ||
-      state.usageView !== "enhanced"
-    )
-      return;
+    if (request !== state.request || state.page !== "usage") return;
     state.data = data;
     renderUsageResults();
     // Populate initially empty filter lists without disturbing selections or open state.
@@ -1768,7 +1725,6 @@ function renderSettings() {
     try {
       state.settings = await api("settings", "PATCH", patch);
       state.showZeroUsage = state.settings.showZeroUsage;
-      originalState.showZeroUsage = state.settings.showZeroUsage;
       await refreshDisplay();
       scheduleRefresh();
       toast("设置已保存");
@@ -1802,11 +1758,7 @@ async function refreshDisplay() {
   if ($("display-status"))
     $("display-status").textContent = displayDescription(next);
   if ($("settings-form")) $("settings-form").updateDisplay?.();
-  if (changed && state.page === "usage") {
-    if (state.usageView === "original")
-      originalView?.updateDisplay({ ...state.settings, ...next.effective });
-    else if (state.data) renderUsageResults();
-  }
+  if (changed && state.page === "usage" && state.data) renderUsageResults();
 }
 async function confirmAction(title, message) {
   $("confirm-title").textContent = title;
@@ -1930,10 +1882,8 @@ $("refresh").onclick = async () => {
   $("refresh").disabled = true;
   try {
     await refreshDisplay();
-    if (state.page === "usage") {
-      if (state.usageView === "original") await originalView?.refresh(true);
-      else await loadUsage(true);
-    } else await renderPage();
+    if (state.page === "usage") await loadUsage(true);
+    else await renderPage();
     await runtime();
   } catch (e) {
     note(errorText(e));
@@ -1964,10 +1914,7 @@ function refreshVisible() {
     await Promise.all([runtime(), refreshDisplay()]);
     if (controller.signal.aborted || !pageVisible() || page !== state.page)
       return;
-    if (state.page === "usage" && !$("editor").open) {
-      if (state.usageView === "original") await originalView?.refresh();
-      else await loadUsage();
-    }
+    if (state.page === "usage" && !$("editor").open) await loadUsage();
     if (state.page === "deliveries" && !$("preview").open)
       await renderDeliveries();
   })()
@@ -1993,7 +1940,6 @@ function visibilityChanged() {
     readController.abort();
     readController = new AbortController();
     usageController?.abort();
-    originalView?.cancelRefresh();
   } else if (initialized) void refreshVisible();
 }
 host = connectHost({ onVisibility: visibilityChanged });
@@ -2028,7 +1974,6 @@ try {
   state.includeCache = state.settings.includeCache;
   state.showZeroAccounts = state.settings.showZeroAccounts;
   state.showZeroUsage = state.settings.showZeroUsage !== false;
-  originalState.showZeroUsage = state.showZeroUsage;
   await renderPage();
   initialized = true;
   $("display-status").textContent = displayDescription(state.display);

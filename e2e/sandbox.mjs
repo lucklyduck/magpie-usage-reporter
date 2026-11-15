@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { checkSaveForms } from "./forms.mjs";
-import { checkOriginal } from "./original.mjs";
 import { checkEnhanced } from "./enhanced.mjs";
 import { checkDeliveryDetails } from "./deliveries.mjs";
 
@@ -111,19 +110,25 @@ export async function checkSandbox(browser, base, deliveries) {
         await frame.locator("#settings-form").waitFor();
         await checkSaveForms(page, frame, "sandbox-" + mode);
         await frame.getByRole("button", { name: "用量", exact: true }).click();
-        await checkOriginal(page, frame);
         await checkEnhanced(page, frame);
         assert.deepEqual(errors, [], "sandbox console errors: " + mode);
         await page.goto(`http://127.0.0.1:${host.port}/${mode}-original`);
         await page
           .frameLocator("iframe")
-          .getByRole("heading", { name: "账号用量树", exact: true })
+          .getByRole("heading", { name: "当前账号额度与余额", exact: true })
           .waitFor();
         await page
           .frameLocator("iframe")
-          .locator(".original-provider")
+          .locator(".usage-tree .provider-row")
           .first()
           .waitFor();
+        assert.equal(
+          await page
+            .frameLocator("iframe")
+            .locator("[data-usage-view]")
+            .count(),
+          0,
+        );
       } finally {
         await page.close();
       }
