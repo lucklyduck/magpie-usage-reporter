@@ -807,9 +807,90 @@ td.name {
   padding-left: 35px;
   color: var(--muted);
 }
-.leaf-marker {
-  margin-right: 5px;
-  color: var(--faint);
+.usage-tree-heading {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.usage-tree .panel-title,
+.usage-tree-controls {
+  flex-wrap: wrap;
+}
+.usage-tree-controls {
+  display: flex;
+  gap: 6px;
+}
+.usage-tree .group-row td:first-child {
+  padding-left: 31px;
+}
+.usage-tree .leaf-row td:first-child {
+  padding-left: 49px;
+}
+.usage-tree-name {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.usage-tree-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.usage-tree-toggle:hover {
+  background: transparent;
+  color: var(--accent);
+}
+.usage-tree-toggle > span {
+  min-width: 0;
+}
+.usage-tree-arrow {
+  flex: 0 0 12px;
+  color: var(--muted);
+}
+.usage-tree-toggle[aria-expanded="true"] .usage-tree-arrow {
+  transform: rotate(90deg);
+}
+.usage-tree-label {
+  display: inline-block;
+  padding-left: 18px;
+}
+.usage-tokens {
+  min-width: 80px;
+}
+.usage-token-bar-cell {
+  width: 24%;
+  min-width: 160px;
+  padding-left: 0;
+  padding-right: 13px;
+}
+.usage-token-bar {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line);
+}
+.usage-token-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.usage-token-share {
+  min-width: 52px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
 }
 .badge {
   display: inline-flex;

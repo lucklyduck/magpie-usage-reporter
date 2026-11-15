@@ -59,6 +59,7 @@ const state = {
   custom: {},
   includeCache: true,
   showZeroAccounts: true,
+  treeExpanded: new Map(),
   editor: null,
   draft: null,
   request: 0,
@@ -466,11 +467,31 @@ function renderEnhancedUsage() {
       )
       .join("") +
     '</div><div class="actions" style="margin-top:16px"><button id="apply-filters">应用筛选</button><button id="reset-filters" class="secondary">清除筛选</button><button id="save-view" class="secondary">保存为默认显示</button></div></details>' +
-    '<div id="usage-results">' +
-    (state.data
-      ? usageResults(state.data)
-      : '<div class="empty">正在读取用量…</div>') +
-    "</div>";
+    '<div id="usage-results"></div>';
+  renderUsageResults();
+  content.onclick = (event) => {
+    const toggle = event.target.closest("[data-tree-toggle]");
+    if (toggle) {
+      state.treeExpanded.set(
+        toggle.dataset.treeToggle,
+        toggle.getAttribute("aria-expanded") !== "true",
+      );
+      syncUsageTree();
+      return;
+    }
+    const control = event.target.closest("[data-tree-level]");
+    if (!control || !state.data) return;
+    const level = control.dataset.treeLevel;
+    for (const provider of state.data.groups) {
+      state.treeExpanded.set(treeKey(state.data, provider), level !== "none");
+      for (const group of provider.children)
+        state.treeExpanded.set(
+          treeKey(state.data, provider, group),
+          level === "all",
+        );
+    }
+    syncUsageTree();
+  };
   $("period").onchange = (e) => {
     state.period = e.target.value;
     renderUsage();
@@ -565,7 +586,7 @@ async function loadUsage(fresh = false) {
     )
       return;
     state.data = data;
-    $("usage-results").innerHTML = usageResults(data);
+    renderUsageResults();
     // Populate initially empty filter lists without disturbing selections or open state.
     for (const key of ["providers", "accounts", "models", "agents"]) {
       const el = $("usage-filters").querySelector(
@@ -581,38 +602,147 @@ async function loadUsage(fresh = false) {
       note(errorText(e));
   }
 }
+function treeKey(data, provider, group) {
+  return JSON.stringify(
+    group
+      ? [data.grouping, provider.id, group.id]
+      : [data.grouping, provider.id],
+  );
+}
+function treeOpen(key, provider = false) {
+  return state.treeExpanded.get(key) ?? provider;
+}
+function syncUsageTree() {
+  const root = $("usage-results");
+  for (const row of root.querySelectorAll("[data-tree-root]")) {
+    row.hidden =
+      !treeOpen(row.dataset.treeRoot, true) ||
+      (row.dataset.treeParent !== undefined &&
+        !treeOpen(row.dataset.treeParent));
+  }
+  for (const button of root.querySelectorAll("[data-tree-toggle]")) {
+    const open = treeOpen(
+      button.dataset.treeToggle,
+      button.closest("tr").classList.contains("provider-row"),
+    );
+    button.setAttribute("aria-expanded", String(open));
+    button.setAttribute(
+      "aria-label",
+      (open ? "收起" : "展开") + button.dataset.treeLabel,
+    );
+  }
+}
+function renderUsageResults() {
+  const root = $("usage-results");
+  if (!root) return;
+  const focused = document.activeElement?.closest(
+    "[data-tree-toggle], [data-tree-level]",
+  );
+  const focusKey = focused?.dataset.treeToggle,
+    focusLevel = focused?.dataset.treeLevel,
+    scrollLeft = root.querySelector(".table-wrap")?.scrollLeft || 0;
+  root.innerHTML =
+    state.data?.grouping === state.grouping
+      ? usageResults(state.data)
+      : '<div class="empty">正在读取用量…</div>';
+  const table = root.querySelector(".table-wrap");
+  if (table) table.scrollLeft = scrollLeft;
+  if (focusKey !== undefined || focusLevel !== undefined) {
+    const next = [
+      ...root.querySelectorAll("[data-tree-toggle], [data-tree-level]"),
+    ].find((button) =>
+      focusKey !== undefined
+        ? button.dataset.treeToggle === focusKey
+        : button.dataset.treeLevel === focusLevel,
+    );
+    next?.focus({ preventScroll: true });
+  }
+}
+function usageTokenCells(item, parent, scope) {
+  const total = Number(parent.tokens),
+    value = Number(item.tokens),
+    percent =
+      Number.isFinite(total) && total > 0 && Number.isFinite(value)
+        ? Math.min(100, Math.max(0, (value / total) * 100))
+        : null;
+  const label =
+    percent === null
+      ? "—"
+      : percent > 0 && percent < 0.1
+        ? "<0.1%"
+        : percent.toFixed(1) + "%";
+  const description = esc(scope + " " + label);
+  return `<td class="usage-tokens">${esc(metric("tokens", item.tokens, item))}</td><td class="usage-token-bar-cell" title="${description}"><div class="usage-token-bar" aria-hidden="true"><span style="width:${percent ?? 0}%"></span></div></td><td class="usage-token-share" title="${description}" aria-label="${description}">${esc(label)}</td>`;
+}
 function usageResults(data) {
   const s = data.totals,
     cols = state.columns.length ? state.columns : ["calls"];
-  const row = (item, label, cls) =>
+  const row = (item, label, cls, parent, scope, attributes) =>
     '<tr class="' +
     cls +
-    '"><td class="name">' +
+    '" ' +
+    attributes +
+    '><td class="name">' +
     label +
     "</td>" +
-    cols.map((k) => "<td>" + esc(metric(k, item[k], item)) + "</td>").join("") +
+    cols
+      .map((k) =>
+        k === "tokens"
+          ? usageTokenCells(item, parent, scope)
+          : "<td>" + esc(metric(k, item[k], item)) + "</td>",
+      )
+      .join("") +
     "</tr>";
+  const name = (item, key, kind, open, badge = "") =>
+    '<div class="usage-tree-name">' +
+    (item.children.length
+      ? `<button type="button" class="usage-tree-toggle" data-tree-toggle="${esc(key)}" data-tree-label="${esc(kind + "：" + item.label)}" aria-expanded="${open}" aria-label="${esc((open ? "收起" : "展开") + kind + "：" + item.label)}"><svg class="usage-tree-arrow" viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg><span>${esc(item.label)}</span></button>`
+      : `<span class="usage-tree-label">${esc(item.label)}</span>`) +
+    badge +
+    "</div>";
   let body = "";
   for (const p of data.groups) {
-    body += row(p, esc(p.label), "provider-row");
+    const providerKey = treeKey(data, p),
+      providerOpen = treeOpen(providerKey, true);
+    body += row(
+      p,
+      name(p, providerKey, "供应商", providerOpen),
+      "provider-row",
+      s,
+      "占当前范围",
+      `data-tree-key="${esc(providerKey)}"`,
+    );
     for (const g of p.children) {
+      const groupKey = treeKey(data, p, g),
+        groupOpen = treeOpen(groupKey);
       body += row(
         g,
-        esc(g.label) +
-          (g.kind === "quota-only"
+        name(
+          g,
+          groupKey,
+          data.grouping === "account" ? "账号" : "模型",
+          groupOpen,
+          g.kind === "quota-only"
             ? '<span class="badge">无调用</span>'
             : g.kind === "api-key"
               ? '<span class="badge">API 密钥组</span>'
               : g.kind === "unknown"
                 ? '<span class="badge">未知账号</span>'
-                : ""),
+                : "",
+        ),
         "group-row",
+        p,
+        "占供应商",
+        `data-tree-key="${esc(groupKey)}" data-tree-root="${esc(providerKey)}"${providerOpen ? "" : " hidden"}`,
       );
       for (const leaf of g.children)
         body += row(
           leaf,
-          '<span class="leaf-marker">↳</span>' + esc(leaf.label),
+          '<span class="usage-tree-label">' + esc(leaf.label) + "</span>",
           "leaf-row",
+          g,
+          data.grouping === "account" ? "占账号" : "占模型",
+          `data-tree-root="${esc(providerKey)}" data-tree-parent="${esc(groupKey)}"${providerOpen && groupOpen ? "" : " hidden"}`,
         );
     }
   }
@@ -655,7 +785,7 @@ function usageResults(data) {
           "</span></div>",
       )
       .join("") +
-    '</section><section class="panel"><div class="panel-title"><h2>' +
+    '</section><section class="panel usage-tree"><div class="panel-title"><div class="usage-tree-heading"><h2>' +
     esc(data.period.label) +
     " · " +
     (data.grouping === "account"
@@ -665,19 +795,24 @@ function usageResults(data) {
     esc(data.period.from) +
     " — " +
     esc(data.period.to) +
-    '</span></div><div class="table-wrap"><table><thead><tr><th>项目</th>' +
+    '</span></div><div class="usage-tree-controls" role="group" aria-label="展开层级"><button type="button" class="secondary small" data-tree-level="none">全部收起</button><button type="button" class="secondary small" data-tree-level="groups">展开到' +
+    (data.grouping === "account" ? "账号" : "模型") +
+    '</button><button type="button" class="secondary small" data-tree-level="all">全部展开</button></div></div><div class="table-wrap"><table><thead><tr><th>项目</th>' +
     cols
       .map(
         (k) =>
           "<th>" +
           esc(state.cap.metrics.find((m) => m.id === k)?.label || k) +
-          "</th>",
+          "</th>" +
+          (k === "tokens"
+            ? '<th class="usage-token-bar-cell" aria-label="Token 占比条"></th><th>占比</th>'
+            : ""),
       )
       .join("") +
     "</tr></thead><tbody>" +
     (body ||
       '<tr><td colspan="' +
-        (cols.length + 1) +
+        (cols.length + 1 + (cols.includes("tokens") ? 2 : 0)) +
         '" class="empty">当前范围没有调用记录</td></tr>') +
     '</tbody></table></div></section><section class="panel"><div class="panel-title"><h2>当前账号额度与余额</h2><span class="muted">账号整体状态，不按模型分摊</span></div>' +
     quotaCards(data.quotas) +
@@ -1604,8 +1739,7 @@ async function refreshDisplay() {
   if (changed && state.page === "usage") {
     if (state.usageView === "original")
       originalView?.updateDisplay({ ...state.settings, ...next.effective });
-    else if (state.data && $("usage-results"))
-      $("usage-results").innerHTML = usageResults(state.data);
+    else if (state.data) renderUsageResults();
   }
 }
 async function confirmAction(title, message) {

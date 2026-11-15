@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { checkSaveForms } from "./forms.mjs";
 import { checkOriginal } from "./original.mjs";
+import { checkEnhanced } from "./enhanced.mjs";
 import { checkDeliveryDetails } from "./deliveries.mjs";
 
 // Magpie keeps allow-same-origin off even after the launcher navigates to
@@ -67,6 +68,7 @@ export async function checkSandbox(browser, base, deliveries) {
         if (message.type() === "error") errors.push(message.text());
       });
       try {
+        await page.clock.install();
         await page.goto("http://127.0.0.1:" + host.port + "/" + mode);
         const frame = page.frameLocator("iframe");
         try {
@@ -110,6 +112,7 @@ export async function checkSandbox(browser, base, deliveries) {
         await checkSaveForms(page, frame, "sandbox-" + mode);
         await frame.getByRole("button", { name: "用量", exact: true }).click();
         await checkOriginal(page, frame);
+        await checkEnhanced(page, frame);
         assert.deepEqual(errors, [], "sandbox console errors: " + mode);
         await page.goto(`http://127.0.0.1:${host.port}/${mode}-original`);
         await page
